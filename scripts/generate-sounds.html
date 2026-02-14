@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animal Sound Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .progress {
+      margin: 20px 0;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Animal Sound Generator</h1>
+  <p>Click the button below to generate all 50 animal sounds (5 seconds each).</p>
+  <button onclick="generateAllSounds()">Generate All Sounds</button>
+  <div class="progress" id="progress"></div>
+  
+  <script>
+    const animals = ["lion","elephant","dog","cat","cow","horse","sheep","pig","chicken","duck","goose","turkey","rooster","frog","owl","crow","parrot","peacock","monkey","bear","wolf","fox","deer","goat","donkey","zebra","giraffe","hippo","rhino","tiger","leopard","cheetah","panda","koala","kangaroo","penguin","seal","dolphin","whale","snake","crocodile","bee","cricket","mosquito","seagull","eagle","hawk","coyote","hyena","gorilla"];
+    
+    const soundProfiles = {
+      lion: { freq: 150, pattern: 'roar' },
+      elephant: { freq: 100, pattern: 'trumpet' },
+      dog: { freq: 400, pattern: 'bark' },
+      cat: { freq: 500, pattern: 'meow' },
+      cow: { freq: 200, pattern: 'moo' },
+      horse: { freq: 300, pattern: 'neigh' },
+      sheep: { freq: 350, pattern: 'simple' },
+      pig: { freq: 250, pattern: 'simple' },
+      chicken: { freq: 600, pattern: 'cluck' },
+      duck: { freq: 450, pattern: 'quack' },
+      goose: { freq: 400, pattern: 'simple' },
+      turkey: { freq: 300, pattern: 'gobble' },
+      rooster: { freq: 700, pattern: 'simple' },
+      frog: { freq: 500, pattern: 'ribbit' },
+      owl: { freq: 350, pattern: 'hoot' },
+      crow: { freq: 550, pattern: 'simple' },
+      parrot: { freq: 800, pattern: 'squawk' },
+      peacock: { freq: 600, pattern: 'simple' },
+      monkey: { freq: 700, pattern: 'chatter' },
+      bear: { freq: 120, pattern: 'growl' },
+      wolf: { freq: 200, pattern: 'howl' },
+      fox: { freq: 450, pattern: 'simple' },
+      deer: { freq: 300, pattern: 'simple' },
+      goat: { freq: 400, pattern: 'simple' },
+      donkey: { freq: 250, pattern: 'bray' },
+      zebra: { freq: 350, pattern: 'simple' },
+      giraffe: { freq: 200, pattern: 'simple' },
+      hippo: { freq: 150, pattern: 'grunt' },
+      rhino: { freq: 130, pattern: 'snort' },
+      tiger: { freq: 140, pattern: 'roar' },
+      leopard: { freq: 160, pattern: 'growl' },
+      cheetah: { freq: 180, pattern: 'chirp' },
+      panda: { freq: 250, pattern: 'simple' },
+      koala: { freq: 300, pattern: 'grunt' },
+      kangaroo: { freq: 350, pattern: 'simple' },
+      penguin: { freq: 500, pattern: 'trumpet' },
+      seal: { freq: 400, pattern: 'bark' },
+      dolphin: { freq: 1000, pattern: 'click' },
+      whale: { freq: 80, pattern: 'song' },
+      snake: { freq: 600, pattern: 'hiss' },
+      crocodile: { freq: 150, pattern: 'growl' },
+      bee: { freq: 1200, pattern: 'buzz' },
+      cricket: { freq: 2000, pattern: 'chirp' },
+      mosquito: { freq: 1500, pattern: 'buzz' },
+      seagull: { freq: 800, pattern: 'simple' },
+      eagle: { freq: 700, pattern: 'screech' },
+      hawk: { freq: 750, pattern: 'screech' },
+      coyote: { freq: 250, pattern: 'howl' },
+      hyena: { freq: 400, pattern: 'laugh' },
+      gorilla: { freq: 180, pattern: 'grunt' }
+    };
+    
+    function generateSound(animalName, duration = 5) {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const sampleRate = audioContext.sampleRate;
+      const numSamples = sampleRate * duration;
+      const audioBuffer = audioContext.createBuffer(1, numSamples, sampleRate);
+      const channelData = audioBuffer.getChannelData(0);
+      
+      const profile = soundProfiles[animalName] || { freq: 440, pattern: 'simple' };
+      const frequency = profile.freq;
+      
+      for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        let value = 0;
+        
+        // Generate different patterns
+        if (profile.pattern === 'bark' || profile.pattern === 'cluck') {
+          // Short bursts
+          const burstTime = t % 1.5;
+          if (burstTime < 0.3) {
+            value = Math.sin(2 * Math.PI * frequency * t);
+          }
+        } else if (profile.pattern === 'buzz' || profile.pattern === 'hiss') {
+          // Continuous with noise
+          value = Math.sin(2 * Math.PI * frequency * t) + (Math.random() - 0.5) * 0.3;
+        } else if (profile.pattern === 'howl') {
+          // Sustained with vibrato
+          const vibrato = frequency * (1 + 0.05 * Math.sin(2 * Math.PI * 5 * t));
+          value = Math.sin(2 * Math.PI * vibrato * t);
+        } else if (profile.pattern === 'chirp') {
+          // Frequency sweep
+          const sweepFreq = frequency + (frequency * 0.5) * (t / duration);
+          value = Math.sin(2 * Math.PI * sweepFreq * t);
+        } else {
+          // Simple tone with harmonics
+          value = Math.sin(2 * Math.PI * frequency * t);
+          value += 0.3 * Math.sin(2 * Math.PI * (frequency * 2) * t);
+        }
+        
+        // Apply envelope
+        const fadeTime = 0.1;
+        if (t < fadeTime) {
+          value *= t / fadeTime;
+        } else if (t > duration - fadeTime) {
+          value *= (duration - t) / fadeTime;
+        }
+        
+        channelData[i] = value * 0.3; // Reduce volume
+      }
+      
+      return audioBuffer;
+    }
+    
+    function audioBufferToWav(audioBuffer) {
+      const numChannels = audioBuffer.numberOfChannels;
+      const sampleRate = audioBuffer.sampleRate;
+      const format = 1; // PCM
+      const bitDepth = 16;
+      
+      const bytesPerSample = bitDepth / 8;
+      const blockAlign = numChannels * bytesPerSample;
+      
+      const data = audioBuffer.getChannelData(0);
+      const dataLength = data.length * bytesPerSample;
+      const buffer = new ArrayBuffer(44 + dataLength);
+      const view = new DataView(buffer);
+      
+      // WAV header
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + dataLength, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, format, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * blockAlign, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitDepth, true);
+      writeString(view, 36, 'data');
+      view.setUint32(40, dataLength, true);
+      
+      // Write audio data
+      let offset = 44;
+      for (let i = 0; i < data.length; i++) {
+        const sample = Math.max(-1, Math.min(1, data[i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
+      }
+      
+      return buffer;
+    }
+    
+    function writeString(view, offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    }
+    
+    async function generateAllSounds() {
+      const progress = document.getElementById('progress');
+      
+      for (let i = 0; i < animals.length; i++) {
+        const animal = animals[i];
+        progress.textContent = `Generating ${animal} (${i + 1}/${animals.length})...`;
+        
+        const audioBuffer = generateSound(animal, 5);
+        const wavData = audioBufferToWav(audioBuffer);
+        const blob = new Blob([wavData], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${animal}.wav`;
+        a.click();
+        
+        URL.revokeObjectURL(url);
+        
+        // Small delay to prevent browser from blocking downloads
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      progress.textContent = 'All sounds generated! Check your downloads folder.';
+      alert('All 50 animal sounds have been generated! Please move the WAV files to the public/sounds directory and convert them to MP3 if needed.');
+    }
+  </script>
+</body>
+</html>

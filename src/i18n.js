@@ -1,0 +1,60 @@
+// Italian translations for animal names
+export const translations = {
+    it: {
+        lion: 'Leone',
+        elephant: 'Elefante',
+        dog: 'Cane',
+        cat: 'Gatto',
+        cow: 'Mucca',
+        horse: 'Cavallo',
+        sheep: 'Pecora',
+        pig: 'Maiale',
+        chicken: 'Gallina',
+        duck: 'Anatra',
+        goose: 'Oca',
+        turkey: 'Tacchino',
+        rooster: 'Gallo',
+        frog: 'Rana',
+        owl: 'Gufo',
+        crow: 'Corvo',
+        parrot: 'Pappagallo',
+        peacock: 'Pavone',
+        monkey: 'Scimmia',
+        bear: 'Orso',
+        wolf: 'Lupo',
+        fox: 'Volpe',
+        deer: 'Cervo',
+        goat: 'Capra',
+        donkey: 'Asino',
+        zebra: 'Zebra',
+        giraffe: 'Giraffa',
+        hippo: 'Ippopotamo',
+        rhino: 'Rinoceronte',
+        tiger: 'Tigre',
+        leopard: 'Leopardo',
+        cheetah: 'Ghepardo',
+        panda: 'Panda',
+        koala: 'Koala',
+        kangaroo: 'Canguro',
+        penguin: 'Pinguino',
+        seal: 'Foca',
+        dolphin: 'Delfino',
+        whale: 'Balena',
+        snake: 'Serpente',
+        crocodile: 'Coccodrillo',
+        bee: 'Ape',
+        cricket: 'Grillo',
+        mosquito: 'Zanzara',
+        seagull: 'Gabbiano',
+        eagle: 'Aquila',
+        hawk: 'Falco',
+        coyote: 'Coyote',
+        hyena: 'Iena',
+        gorilla: 'Gorilla'
+    }
+};
+
+// Get translated animal name
+export function getAnimalName(animalKey, locale = 'it') {
+    return translations[locale]?.[animalKey] || animalKey;
+}
