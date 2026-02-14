@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad-twinkle" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD93D;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFC107;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="200" cy="200" r="180" fill="url(#grad-twinkle)" />
+  
+  <!-- Musical note decoration -->
+  <text x="80" y="120" font-size="40" fill="rgba(255,255,255,0.3)">♪</text>
+  <text x="280" y="140" font-size="50" fill="rgba(255,255,255,0.3)">♫</text>
+  
+  <!-- Emoji -->
+  <text x="200" y="240" font-size="140" text-anchor="middle" font-family="Arial, sans-serif">
+    ⭐
+  </text>
+  
+  <!-- More musical notes -->
+  <text x="100" y="320" font-size="35" fill="rgba(255,255,255,0.3)">♬</text>
+  <text x="290" y="300" font-size="40" fill="rgba(255,255,255,0.3)">♩</text>
+</svg>
