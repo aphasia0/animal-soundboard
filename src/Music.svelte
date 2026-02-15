@@ -3,6 +3,7 @@
     import { createEventDispatcher } from "svelte";
     import { music, getRandomMusic } from "./music.js";
     import { getMusicName } from "./i18n.js";
+    import { playAudio, stopAudio } from "./audioUtils.js";
 
     const dispatch = createEventDispatcher();
     const locale = "it";
@@ -13,7 +14,6 @@
     let isPressed = false;
     let pressStartTime = null;
     let animationFrameId = null;
-    let audio = null;
 
     const MAX_TIME = 5000;
 
@@ -23,12 +23,7 @@
         isPressed = true;
         pressStartTime = Date.now();
 
-        if (audio) {
-            audio.pause();
-            audio.currentTime = 0;
-        }
-        audio = new Audio(currentMusic.sound);
-        audio.play().catch((err) => console.log("Audio play failed:", err));
+        playAudio(currentMusic.sound);
 
         updateProgress();
     }
@@ -41,9 +36,7 @@
         const timePressed = Date.now() - pressStartTime;
         accumulatedTime += timePressed;
 
-        if (audio) {
-            audio.pause();
-        }
+        stopAudio();
 
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
@@ -77,10 +70,7 @@
         accumulatedTime = 0;
         progress = 0;
 
-        if (audio) {
-            audio.pause();
-            audio = null;
-        }
+        stopAudio();
     }
 
     function handleTouchStart(e) {
@@ -110,9 +100,7 @@
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
         }
-        if (audio) {
-            audio.pause();
-        }
+        stopAudio();
     });
 </script>
 
@@ -127,7 +115,7 @@
         </div>
 
         <button
-            class="music-button"
+            class="item-button"
             on:mousedown={handlePressStart}
             on:mouseup={handlePressEnd}
             on:mouseleave={handlePressEnd}
@@ -139,7 +127,7 @@
                 src={currentMusic.image}
                 alt={getMusicName(currentMusic.key, locale)}
             />
-            <div class="music-name">
+            <div class="item-name">
                 {getMusicName(currentMusic.key, locale)}
             </div>
         </button>
@@ -218,7 +206,7 @@
         box-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
     }
 
-    .music-button {
+    .item-button {
         flex: 1;
         border: none;
         border-radius: 30px;
@@ -240,19 +228,19 @@
         -webkit-touch-callout: none;
     }
 
-    .music-button:active {
+    .item-button:active {
         transform: scale(0.93);
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
     }
 
-    .music-button img {
+    .item-button img {
         max-width: 90%;
         max-height: 80%;
         object-fit: contain;
         pointer-events: none;
     }
 
-    .music-name {
+    .item-name {
         position: absolute;
         bottom: 2rem;
         font-size: 2.5rem;
@@ -268,7 +256,7 @@
             font-size: 1rem;
         }
 
-        .music-name {
+        .item-name {
             font-size: 1.8rem;
             bottom: 1rem;
         }
@@ -277,7 +265,7 @@
             padding: 0.5rem;
         }
 
-        .music-button {
+        .item-button {
             padding: 1rem;
             border-radius: 20px;
         }

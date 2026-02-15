@@ -43,7 +43,7 @@
 
 <main>
     <div class="home">
-        <h3 class="title">SoundPad</h3>
+        <h3 class="title">SoundPadsss</h3>
 
         <div class="grid">
             {#each categories as category}
