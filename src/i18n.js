@@ -87,6 +87,15 @@ const musicTranslations = {
     'london_bridge': 'London Bridge'
 };
 
+// People translations
+const peopleTranslations = {
+    'papa': 'Papà',
+    'mamma': 'Mamma',
+    'nonna': 'Nonna',
+    'nonno': 'Nonno',
+    'michele': 'Michele'
+};
+
 export function getJobName(key, locale = 'it') {
     if (locale === 'it') {
         return jobTranslations[key] || key;
@@ -97,6 +106,13 @@ export function getJobName(key, locale = 'it') {
 export function getMusicName(key, locale = 'it') {
     if (locale === 'it') {
         return musicTranslations[key] || key;
+    }
+    return key;
+}
+
+export function getPersonName(key, locale = 'it') {
+    if (locale === 'it') {
+        return peopleTranslations[key] || key;
     }
     return key;
 }

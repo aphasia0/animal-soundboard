@@ -19,11 +19,11 @@
             description: "10 lavori",
         },
         {
-            id: "nature",
-            name: "Natura",
-            emoji: "🌳",
-            enabled: false,
-            description: "Prossimamente",
+            id: "people",
+            name: "Persone",
+            emoji: "👨‍👩‍👧‍👦",
+            enabled: true,
+            description: "5 persone",
         },
         {
             id: "music",
