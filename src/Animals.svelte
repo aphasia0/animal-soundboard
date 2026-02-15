@@ -93,6 +93,15 @@
         handlePressEnd();
     }
 
+    function handleKeyDown(e) {
+        if (e.repeat) return;
+        handlePressStart();
+    }
+
+    function handleKeyUp(e) {
+        handlePressEnd();
+    }
+
     function goBack() {
         dispatch("back");
     }
@@ -106,6 +115,8 @@
         }
     });
 </script>
+
+<svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} />
 
 <main>
     <div class="soundboard">

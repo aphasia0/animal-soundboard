@@ -43,7 +43,7 @@
 
 <main>
     <div class="home">
-        <h1 class="title">Scegli una Categoria</h1>
+        <h3 class="title">SoundPad</h3>
 
         <div class="grid">
             {#each categories as category}
