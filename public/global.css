@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
 * {
   box-sizing: border-box;
 }
@@ -10,4 +12,7 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #F8FAFC;
+  color: #0F172A;
 }

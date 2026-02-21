@@ -16,11 +16,12 @@
     const dispatch = createEventDispatcher();
     const locale = "it";
 
-    let currentMusic = music[0];
+    let currentMusic = getRandomMusic();
     let progress = 0;
     let accumulatedTime = 0;
     let isPressed = false;
     let pressStartTime = null;
+    let isTouchDevice = false;
     let animationFrameId = null;
 
     const MAX_TIME = 5000;
@@ -84,11 +85,14 @@
 
     function handleTouchStart(e) {
         e.preventDefault();
+        isTouchDevice = true;
+        if (e.touches.length > 1) return;
         handlePressStart();
     }
 
     function handleTouchEnd(e) {
         e.preventDefault();
+        if (e.touches.length > 0) return;
         handlePressEnd();
     }
 
@@ -125,9 +129,15 @@
 
         <button
             class="item-button"
-            on:mousedown={handlePressStart}
-            on:mouseup={handlePressEnd}
-            on:mouseleave={handlePressEnd}
+            on:mousedown={() => {
+                if (!isTouchDevice) handlePressStart();
+            }}
+            on:mouseup={() => {
+                if (!isTouchDevice) handlePressEnd();
+            }}
+            on:mouseleave={() => {
+                if (!isTouchDevice) handlePressEnd();
+            }}
             on:touchstart={handleTouchStart}
             on:touchend={handleTouchEnd}
             on:touchcancel={handleTouchEnd}

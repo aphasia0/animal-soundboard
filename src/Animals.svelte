@@ -3,19 +3,25 @@
     import { createEventDispatcher } from "svelte";
     import { animals, getRandomAnimal } from "./animals.js";
     import { getAnimalName } from "./i18n.js";
-    import { playAudio, stopAudio, preloadSounds, resumeAudioContext } from "./audioUtils.js";
+    import {
+        playAudio,
+        stopAudio,
+        preloadSounds,
+        resumeAudioContext,
+    } from "./audioUtils.js";
 
     // Preload all animal sounds immediately for instant playback
-    preloadSounds(animals.map(a => a.sound));
+    preloadSounds(animals.map((a) => a.sound));
 
     const dispatch = createEventDispatcher();
     const locale = "it";
 
-    let currentAnimal = animals[0];
+    let currentAnimal = getRandomAnimal();
     let progress = 0;
     let accumulatedTime = 0;
     let isPressed = false;
     let pressStartTime = null;
+    let isTouchDevice = false;
     let animationFrameId = null;
 
     const MAX_TIME = 5000;
@@ -79,11 +85,14 @@
 
     function handleTouchStart(e) {
         e.preventDefault();
+        isTouchDevice = true;
+        if (e.touches.length > 1) return;
         handlePressStart();
     }
 
     function handleTouchEnd(e) {
         e.preventDefault();
+        if (e.touches.length > 0) return;
         handlePressEnd();
     }
 
@@ -120,9 +129,15 @@
 
         <button
             class="item-button"
-            on:mousedown={handlePressStart}
-            on:mouseup={handlePressEnd}
-            on:mouseleave={handlePressEnd}
+            on:mousedown={() => {
+                if (!isTouchDevice) handlePressStart();
+            }}
+            on:mouseup={() => {
+                if (!isTouchDevice) handlePressEnd();
+            }}
+            on:mouseleave={() => {
+                if (!isTouchDevice) handlePressEnd();
+            }}
             on:touchstart={handleTouchStart}
             on:touchend={handleTouchEnd}
             on:touchcancel={handleTouchEnd}
