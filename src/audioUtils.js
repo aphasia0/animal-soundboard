@@ -6,7 +6,11 @@ let audioContext = null;
 // Cache: sound path -> decoded AudioBuffer
 const bufferCache = new Map();
 
+// Single-channel legacy source
 let currentSource = null;
+
+// Multi-channel sources: channelId -> AudioBufferSourceNode
+const channelSources = new Map();
 
 /**
  * Returns the shared AudioContext, creating it lazily.
@@ -53,7 +57,27 @@ export async function preloadSounds(paths) {
 }
 
 /**
- * Plays an audio file with looping enabled.
+ * Fetches or retrieves a cached AudioBuffer for the given source.
+ */
+async function getBuffer(src) {
+    const ctx = getAudioContext();
+    let buffer = bufferCache.get(src);
+    if (!buffer) {
+        try {
+            const response = await fetch(src);
+            const arrayBuffer = await response.arrayBuffer();
+            buffer = await ctx.decodeAudioData(arrayBuffer);
+            bufferCache.set(src, buffer);
+        } catch (err) {
+            console.warn('Audio load failed:', err);
+            return null;
+        }
+    }
+    return buffer;
+}
+
+/**
+ * Plays an audio file with looping enabled (single-channel, legacy).
  * Uses pre-decoded AudioBuffers for instant start on iOS.
  *
  * @param {string} src - Path to the audio file
@@ -69,20 +93,8 @@ export async function playAudio(src) {
         await ctx.resume();
     }
 
-    let buffer = bufferCache.get(src);
-
-    // Fallback: if not preloaded, fetch & decode now
-    if (!buffer) {
-        try {
-            const response = await fetch(src);
-            const arrayBuffer = await response.arrayBuffer();
-            buffer = await ctx.decodeAudioData(arrayBuffer);
-            bufferCache.set(src, buffer);
-        } catch (err) {
-            console.warn('Audio load failed:', err);
-            return;
-        }
-    }
+    const buffer = await getBuffer(src);
+    if (!buffer) return;
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
@@ -93,7 +105,7 @@ export async function playAudio(src) {
 }
 
 /**
- * Stops the currently playing audio.
+ * Stops the currently playing audio (single-channel, legacy).
  */
 export function stopAudio() {
     if (currentSource) {
@@ -104,5 +116,60 @@ export function stopAudio() {
         }
         currentSource.disconnect();
         currentSource = null;
+    }
+}
+
+/**
+ * Plays an audio file on a named channel. Each channel is independent,
+ * so multiple channels can play simultaneously.
+ *
+ * @param {string} src - Path to the audio file
+ * @param {string} channelId - Unique channel identifier (e.g. "left", "right")
+ */
+export async function playAudioChannel(src, channelId) {
+    // Stop any existing sound on this channel
+    stopAudioChannel(channelId);
+
+    const ctx = getAudioContext();
+
+    if (ctx.state === 'suspended') {
+        await ctx.resume();
+    }
+
+    const buffer = await getBuffer(src);
+    if (!buffer) return;
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(ctx.destination);
+    source.start(0);
+    channelSources.set(channelId, source);
+}
+
+/**
+ * Stops audio on a specific named channel.
+ *
+ * @param {string} channelId - The channel to stop
+ */
+export function stopAudioChannel(channelId) {
+    const source = channelSources.get(channelId);
+    if (source) {
+        try {
+            source.stop();
+        } catch (e) {
+            // Ignore if already stopped
+        }
+        source.disconnect();
+        channelSources.delete(channelId);
+    }
+}
+
+/**
+ * Stops all named channels.
+ */
+export function stopAllChannels() {
+    for (const [id] of channelSources) {
+        stopAudioChannel(id);
     }
 }

@@ -1,8 +1,7 @@
 <script>
     import { onMount, onDestroy } from "svelte";
     import { createEventDispatcher } from "svelte";
-    import { sentences, getRandomSentence } from "./sentences.js";
-    import { getSentenceName } from "./i18n.js";
+    import { getSupabase } from "./supabaseClient.js";
     import CardSelector from "./CardSelector.svelte";
     import {
         playAudio,
@@ -14,26 +13,29 @@
         resumeAudioContext,
     } from "./audioUtils.js";
 
+    export let categoryId;
     export let cardMode = 1;
-    preloadSounds(sentences.map((s) => s.sound));
+
     const dispatch = createEventDispatcher();
-    const locale = "it";
 
     let shuffleMode = true;
-    let seqIndex = 0;
-    let seqIndexA = 0;
-    let seqIndexB = 1 % sentences.length;
 
-    let currentSentence = getRandomSentence();
+    let cards = [];
+    let loadingCards = true;
+    let isTouchDevice = false;
+    let isLandscape = false;
+
+    // Single card state
+    let currentIndex = 0;
     let progress = 0,
         accumulatedTime = 0,
         isPressed = false,
         pressStartTime = null;
-    let isTouchDevice = false,
-        animationFrameId = null;
+    let animationFrameId = null;
 
-    let itemA = getRandomSentence(),
-        itemB = getRandomSentence(itemA.id);
+    // Dual card state
+    let indexA = 0,
+        indexB = 1;
     let progressA = 0,
         progressB = 0,
         accumulatedTimeA = 0,
@@ -44,23 +46,50 @@
         pressStartTimeB = null;
     let animationFrameIdA = null,
         animationFrameIdB = null;
-    let isLandscape = false;
+
+    const MAX_TIME = 5000;
 
     function checkOrientation() {
         isLandscape = window.innerWidth > window.innerHeight;
     }
-    onMount(() => {
+
+    function getRandomIndex(excludeIdx) {
+        if (cards.length <= 1) return 0;
+        let idx;
+        do {
+            idx = Math.floor(Math.random() * cards.length);
+        } while (idx === excludeIdx);
+        return idx;
+    }
+
+    onMount(async () => {
         checkOrientation();
         window.addEventListener("resize", checkOrientation);
+        const supabase = getSupabase();
+        if (supabase) {
+            const { data } = await supabase
+                .from("user_cards")
+                .select("*")
+                .eq("category_id", categoryId)
+                .order("created_at");
+            cards = data || [];
+            if (cards.length > 0) {
+                preloadSounds(cards.map((c) => c.sound_url));
+                currentIndex = 0;
+                indexA = 0;
+                indexB = cards.length > 1 ? 1 : 0;
+            }
+        }
+        loadingCards = false;
     });
-    const MAX_TIME = 5000;
 
+    // Single card handlers
     function handlePressStart() {
-        if (isPressed) return;
+        if (isPressed || cards.length === 0) return;
         isPressed = true;
         pressStartTime = Date.now();
         resumeAudioContext();
-        playAudio(currentSentence.sound);
+        playAudio(cards[currentIndex].sound_url);
         updateProgress();
     }
     function handlePressEnd() {
@@ -69,7 +98,7 @@
         accumulatedTime += Date.now() - pressStartTime;
         stopAudio();
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        if (accumulatedTime >= MAX_TIME) nextSentence();
+        if (accumulatedTime >= MAX_TIME) nextCard();
         else progress = (accumulatedTime / MAX_TIME) * 100;
     }
     function updateProgress() {
@@ -78,29 +107,29 @@
         progress = Math.min((t / MAX_TIME) * 100, 100);
         if (t >= MAX_TIME) {
             handlePressEnd();
-            nextSentence();
+            nextCard();
             return;
         }
         animationFrameId = requestAnimationFrame(updateProgress);
     }
-    function nextSentence() {
+    function nextCard() {
         if (shuffleMode) {
-            currentSentence = getRandomSentence(currentSentence.id);
+            currentIndex = getRandomIndex(currentIndex);
         } else {
-            seqIndex = (seqIndex + 1) % sentences.length;
-            currentSentence = sentences[seqIndex];
+            currentIndex = (currentIndex + 1) % cards.length;
         }
         accumulatedTime = 0;
         progress = 0;
         stopAudio();
     }
 
+    // Dual card A
     function handlePressStartA() {
-        if (isPressedA) return;
+        if (isPressedA || cards.length === 0) return;
         isPressedA = true;
         pressStartTimeA = Date.now();
         resumeAudioContext();
-        playAudioChannel(itemA.sound, "cardA");
+        playAudioChannel(cards[indexA].sound_url, "cardA");
         updateProgressA();
     }
     function handlePressEndA() {
@@ -109,7 +138,7 @@
         accumulatedTimeA += Date.now() - pressStartTimeA;
         stopAudioChannel("cardA");
         if (animationFrameIdA) cancelAnimationFrame(animationFrameIdA);
-        if (accumulatedTimeA >= MAX_TIME) nextItemA();
+        if (accumulatedTimeA >= MAX_TIME) nextA();
         else progressA = (accumulatedTimeA / MAX_TIME) * 100;
     }
     function updateProgressA() {
@@ -118,29 +147,29 @@
         progressA = Math.min((t / MAX_TIME) * 100, 100);
         if (t >= MAX_TIME) {
             handlePressEndA();
-            nextItemA();
+            nextA();
             return;
         }
         animationFrameIdA = requestAnimationFrame(updateProgressA);
     }
-    function nextItemA() {
+    function nextA() {
         if (shuffleMode) {
-            itemA = getRandomSentence(itemA.id);
+            indexA = getRandomIndex(indexA);
         } else {
-            seqIndexA = (seqIndexA + 1) % sentences.length;
-            itemA = sentences[seqIndexA];
+            indexA = (indexA + 1) % cards.length;
         }
         accumulatedTimeA = 0;
         progressA = 0;
         stopAudioChannel("cardA");
     }
 
+    // Dual card B
     function handlePressStartB() {
-        if (isPressedB) return;
+        if (isPressedB || cards.length === 0) return;
         isPressedB = true;
         pressStartTimeB = Date.now();
         resumeAudioContext();
-        playAudioChannel(itemB.sound, "cardB");
+        playAudioChannel(cards[indexB].sound_url, "cardB");
         updateProgressB();
     }
     function handlePressEndB() {
@@ -149,7 +178,7 @@
         accumulatedTimeB += Date.now() - pressStartTimeB;
         stopAudioChannel("cardB");
         if (animationFrameIdB) cancelAnimationFrame(animationFrameIdB);
-        if (accumulatedTimeB >= MAX_TIME) nextItemB();
+        if (accumulatedTimeB >= MAX_TIME) nextB();
         else progressB = (accumulatedTimeB / MAX_TIME) * 100;
     }
     function updateProgressB() {
@@ -158,23 +187,23 @@
         progressB = Math.min((t / MAX_TIME) * 100, 100);
         if (t >= MAX_TIME) {
             handlePressEndB();
-            nextItemB();
+            nextB();
             return;
         }
         animationFrameIdB = requestAnimationFrame(updateProgressB);
     }
-    function nextItemB() {
+    function nextB() {
         if (shuffleMode) {
-            itemB = getRandomSentence(itemB.id);
+            indexB = getRandomIndex(indexB);
         } else {
-            seqIndexB = (seqIndexB + 1) % sentences.length;
-            itemB = sentences[seqIndexB];
+            indexB = (indexB + 1) % cards.length;
         }
         accumulatedTimeB = 0;
         progressB = 0;
         stopAudioChannel("cardB");
     }
 
+    // Touch handlers
     function handleTouchStartA(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -216,8 +245,12 @@
         if (cardMode === 2) return;
         handlePressEnd();
     }
+
     function goBack() {
         dispatch("back");
+    }
+    function addCard() {
+        dispatch("addCard");
     }
 
     let showSelector = false;
@@ -225,16 +258,7 @@
     function handleCardSelect(e) {
         const { category, item, index } = e.detail;
         showSelector = false;
-        if (category === "sentences") {
-            currentSentence = item;
-            seqIndex = index;
-            accumulatedTime = 0;
-            progress = 0;
-            stopAudio();
-            stopAllChannels();
-        } else {
-            dispatch("jumpTo", { category, item, index });
-        }
+        dispatch("jumpTo", { category, item, index });
     }
 
     onDestroy(() => {
@@ -267,7 +291,22 @@
                 /></svg
             >
         </button>
-        {#if cardMode === 1}
+        <button class="add-card-btn" on:click={addCard}>＋</button>
+
+        {#if loadingCards}
+            <div class="empty-state">
+                <div class="emoji-big">⏳</div>
+                <p>Caricamento...</p>
+            </div>
+        {:else if cards.length === 0}
+            <div class="empty-state">
+                <div class="emoji-big">📭</div>
+                <p>Nessuna card ancora</p>
+                <button class="add-first-btn" on:click={addCard}
+                    >＋ Aggiungi la prima card</button
+                >
+            </div>
+        {:else if cardMode === 1}
             <div class="progress-container">
                 <div class="progress-bar" style="width: {progress}%"></div>
             </div>
@@ -287,12 +326,10 @@
                 on:touchcancel={handleTouchEnd}
             >
                 <img
-                    src={currentSentence.image}
-                    alt={getSentenceName(currentSentence.key, locale)}
+                    src={cards[currentIndex].image_url}
+                    alt={cards[currentIndex].name}
                 />
-                <div class="item-name">
-                    {getSentenceName(currentSentence.key, locale)}
-                </div>
+                <div class="item-name">{cards[currentIndex].name}</div>
             </button>
         {:else}
             <div class="dual-container" class:landscape={isLandscape}>
@@ -319,12 +356,10 @@
                         on:touchcancel={handleTouchEndA}
                     >
                         <img
-                            src={itemA.image}
-                            alt={getSentenceName(itemA.key, locale)}
+                            src={cards[indexA].image_url}
+                            alt={cards[indexA].name}
                         />
-                        <div class="item-name">
-                            {getSentenceName(itemA.key, locale)}
-                        </div>
+                        <div class="item-name">{cards[indexA].name}</div>
                     </button>
                 </div>
                 <div class="card-wrapper">
@@ -350,12 +385,10 @@
                         on:touchcancel={handleTouchEndB}
                     >
                         <img
-                            src={itemB.image}
-                            alt={getSentenceName(itemB.key, locale)}
+                            src={cards[indexB].image_url}
+                            alt={cards[indexB].name}
                         />
-                        <div class="item-name">
-                            {getSentenceName(itemB.key, locale)}
-                        </div>
+                        <div class="item-name">{cards[indexB].name}</div>
                     </button>
                 </div>
             </div>
@@ -365,8 +398,8 @@
 
 {#if showSelector}
     <CardSelector
-        currentCategory="sentences"
-        currentItemId={cardMode === 1 ? currentSentence?.id : null}
+        currentCategory=""
+        currentItemId={null}
         on:select={handleCardSelect}
         on:close={() => (showSelector = false)}
     />
@@ -417,9 +450,6 @@
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
     }
-    .back-button:active {
-        transform: translateY(0);
-    }
     .select-btn {
         position: absolute;
         top: 1rem;
@@ -464,6 +494,29 @@
     .shuffle-btn:hover {
         transform: translateX(-50%) translateY(-2px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+    }
+    .add-card-btn {
+        position: absolute;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: none;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-size: 2rem;
+        cursor: pointer;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+    .add-card-btn:hover {
+        transform: scale(1.1);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
     }
     .progress-container {
         height: 8%;
@@ -511,17 +564,51 @@
         max-height: 80%;
         object-fit: contain;
         pointer-events: none;
+        border-radius: 16px;
     }
     .item-name {
         position: absolute;
         bottom: 2rem;
-        font-size: 2.2rem;
+        font-size: 2.5rem;
         font-weight: bold;
         color: #667eea;
         text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
         pointer-events: none;
         text-align: center;
         padding: 0 1rem;
+    }
+    .empty-state {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        text-align: center;
+    }
+    .emoji-big {
+        font-size: 5rem;
+        margin-bottom: 1rem;
+    }
+    .empty-state p {
+        font-size: 1.5rem;
+        margin: 0 0 2rem 0;
+    }
+    .add-first-btn {
+        background: white;
+        color: #667eea;
+        border: none;
+        border-radius: 16px;
+        padding: 1rem 2rem;
+        font-size: 1.2rem;
+        font-weight: bold;
+        cursor: pointer;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s;
+    }
+    .add-first-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
     }
     .dual-container {
         display: flex;
@@ -549,8 +636,8 @@
         border-radius: 20px;
     }
     .dual-container .item-name {
-        font-size: 1.6rem;
-        bottom: 0.5rem;
+        font-size: 1.8rem;
+        bottom: 1rem;
     }
     .dual-container .item-button img {
         max-height: 70%;
@@ -561,8 +648,8 @@
             font-size: 1rem;
         }
         .item-name {
-            font-size: 1.6rem;
-            bottom: 5rem;
+            font-size: 1.8rem;
+            bottom: 1rem;
         }
         .soundboard {
             padding: 0.5rem;
@@ -578,7 +665,7 @@
             margin-top: 3.5rem;
         }
         .dual-container .item-name {
-            font-size: 1.3rem;
+            font-size: 1.4rem;
             bottom: 0.5rem;
         }
     }
