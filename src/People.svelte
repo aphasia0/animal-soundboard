@@ -3,7 +3,15 @@
     import { createEventDispatcher } from "svelte";
     import { people, getRandomPerson } from "./people.js";
     import { getPersonName } from "./i18n.js";
-    import { playAudio, stopAudio } from "./audioUtils.js";
+    import {
+        playAudio,
+        stopAudio,
+        preloadSounds,
+        resumeAudioContext,
+    } from "./audioUtils.js";
+
+    // Preload all people sounds immediately for instant playback
+    preloadSounds(people.map((p) => p.sound));
 
     const dispatch = createEventDispatcher();
     const locale = "it";
@@ -23,6 +31,7 @@
         isPressed = true;
         pressStartTime = Date.now();
 
+        resumeAudioContext();
         playAudio(currentPerson.sound);
 
         updateProgress();

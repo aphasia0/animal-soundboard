@@ -3,7 +3,10 @@
     import { createEventDispatcher } from "svelte";
     import { animals, getRandomAnimal } from "./animals.js";
     import { getAnimalName } from "./i18n.js";
-    import { playAudio, stopAudio } from "./audioUtils.js";
+    import { playAudio, stopAudio, preloadSounds, resumeAudioContext } from "./audioUtils.js";
+
+    // Preload all animal sounds immediately for instant playback
+    preloadSounds(animals.map(a => a.sound));
 
     const dispatch = createEventDispatcher();
     const locale = "it";
@@ -23,6 +26,7 @@
         isPressed = true;
         pressStartTime = Date.now();
 
+        resumeAudioContext();
         playAudio(currentAnimal.sound);
 
         updateProgress();

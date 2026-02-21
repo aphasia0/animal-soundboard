@@ -3,7 +3,15 @@
     import { createEventDispatcher } from "svelte";
     import { music, getRandomMusic } from "./music.js";
     import { getMusicName } from "./i18n.js";
-    import { playAudio, stopAudio } from "./audioUtils.js";
+    import {
+        playAudio,
+        stopAudio,
+        preloadSounds,
+        resumeAudioContext,
+    } from "./audioUtils.js";
+
+    // Preload all music sounds immediately for instant playback
+    preloadSounds(music.map((m) => m.sound));
 
     const dispatch = createEventDispatcher();
     const locale = "it";
@@ -23,6 +31,7 @@
         isPressed = true;
         pressStartTime = Date.now();
 
+        resumeAudioContext();
         playAudio(currentMusic.sound);
 
         updateProgress();

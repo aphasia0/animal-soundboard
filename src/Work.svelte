@@ -3,7 +3,15 @@
     import { createEventDispatcher } from "svelte";
     import { jobs, getRandomJob } from "./jobs.js";
     import { getJobName } from "./i18n.js";
-    import { playAudio, stopAudio } from "./audioUtils.js";
+    import {
+        playAudio,
+        stopAudio,
+        preloadSounds,
+        resumeAudioContext,
+    } from "./audioUtils.js";
+
+    // Preload all job sounds immediately for instant playback
+    preloadSounds(jobs.map((j) => j.sound));
 
     const dispatch = createEventDispatcher();
     const locale = "it";
@@ -23,6 +31,7 @@
         isPressed = true;
         pressStartTime = Date.now();
 
+        resumeAudioContext();
         playAudio(currentJob.sound);
 
         updateProgress();
