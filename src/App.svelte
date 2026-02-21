@@ -4,8 +4,9 @@
   import Work from "./Work.svelte";
   import Music from "./Music.svelte";
   import People from "./People.svelte";
+  import Sentences from "./Sentences.svelte";
 
-  let currentView = "home"; // 'home', 'animals', 'work', 'music', or 'people'
+  let currentView = "home"; // 'home', 'animals', 'work', 'music', 'people', or 'sentences'
 
   function handleCategorySelect(event) {
     const category = event.detail;
@@ -17,6 +18,8 @@
       currentView = "music";
     } else if (category === "people") {
       currentView = "people";
+    } else if (category === "sentences") {
+      currentView = "sentences";
     }
   }
 
@@ -35,4 +38,6 @@
   <Music on:back={handleBack} />
 {:else if currentView === "people"}
   <People on:back={handleBack} />
+{:else if currentView === "sentences"}
+  <Sentences on:back={handleBack} />
 {/if}

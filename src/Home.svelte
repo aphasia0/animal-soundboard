@@ -32,6 +32,13 @@
             enabled: true,
             description: "10 canzoni",
         },
+        {
+            id: "sentences",
+            name: "Frasi",
+            emoji: "💬",
+            enabled: true,
+            description: "8 frasi",
+        },
     ];
 
     function selectCategory(category) {
@@ -43,7 +50,7 @@
 
 <main>
     <div class="home">
-        <h3 class="title">SoundPadsss</h3>
+        <h3 class="title">Sound Pad</h3>
 
         <div class="grid">
             {#each categories as category}

@@ -116,3 +116,22 @@ export function getPersonName(key, locale = 'it') {
     }
     return key;
 }
+
+// Sentence translations
+const sentenceTranslations = {
+    'voglio_cioccolato': 'Io voglio il cioccolato',
+    'ho_fame': 'Ho fame',
+    'andiamo_casa': 'Andiamo a casa',
+    'andiamo_scuola': 'Andiamo a scuola',
+    'ho_sete': 'Ho sete',
+    'buona_pappa': 'Che buona questa pappa',
+    'andiamo_tata': 'Andiamo dalla tata',
+    'voglio_passeggiata': 'Voglio fare una passeggiata'
+};
+
+export function getSentenceName(key, locale = 'it') {
+    if (locale === 'it') {
+        return sentenceTranslations[key] || key;
+    }
+    return key;
+}
