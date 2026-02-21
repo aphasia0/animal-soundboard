@@ -1,8 +1,8 @@
 // Supabase client - uses the global `supabase` loaded via CDN in index.html
 // Environment variables are injected by @rollup/plugin-replace at build time
 
-const SUPABASE_URL = '__SUPABASE_URL__';
-const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
+const SUPABASE_URL = __SUPABASE_URL__;
+const SUPABASE_ANON_KEY = __SUPABASE_ANON_KEY__;
 
 let client = null;
 

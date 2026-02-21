@@ -5,8 +5,6 @@ export const user = writable(null);
 export const authLoading = writable(true);
 
 export async function initAuth() {
-    alert('initAuth');
-    console.log('initAuth');
     const supabase = getSupabase();
     if (!supabase) {
         authLoading.set(false);
