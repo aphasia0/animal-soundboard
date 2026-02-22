@@ -20,6 +20,10 @@
 
     let shuffleMode = true;
 
+    // Delete confirmation state
+    let showDeleteConfirm = false;
+    let cardToDelete = null;
+
     let cards = [];
     let loadingCards = true;
     let isTouchDevice = false;
@@ -51,6 +55,46 @@
 
     function checkOrientation() {
         isLandscape = window.innerWidth > window.innerHeight;
+    }
+
+    async function confirmDeleteCard() {
+        if (!cardToDelete) return;
+        const supabase = getSupabase();
+
+        const deletedId = cardToDelete.id;
+        const imgUrl = cardToDelete.image_url;
+        const sndUrl = cardToDelete.sound_url;
+
+        cards = cards.filter((c) => c.id !== deletedId);
+        if (cards.length > 0) {
+            currentIndex = currentIndex % cards.length;
+            indexA = currentIndex;
+            indexB = (currentIndex + 1) % cards.length;
+        }
+
+        showDeleteConfirm = false;
+        cardToDelete = null;
+
+        await supabase.from("user_cards").delete().eq("id", deletedId);
+
+        try {
+            if (imgUrl) {
+                const imgPath = imgUrl.split("/public/card-images/")[1];
+                if (imgPath)
+                    await supabase.storage
+                        .from("card-images")
+                        .remove([imgPath]);
+            }
+            if (sndUrl) {
+                const sndPath = sndUrl.split("/public/card-sounds/")[1];
+                if (sndPath)
+                    await supabase.storage
+                        .from("card-sounds")
+                        .remove([sndPath]);
+            }
+        } catch (e) {
+            console.error("Storage cleanup failed:", e);
+        }
     }
 
     function getRandomIndex(excludeIdx) {
@@ -302,6 +346,33 @@
                 <line x1="4" y1="4" x2="9" y2="9" />
             </svg>
         </button>
+        {#if cards.length > 0 && cardMode === 1}
+            <button
+                class="delete-card-btn"
+                on:click={() => {
+                    cardToDelete = cards[currentIndex];
+                    showDeleteConfirm = true;
+                }}
+            >
+                <svg
+                    viewBox="0 0 24 24"
+                    width="24"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    fill="none"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path
+                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                    ></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+            </button>
+        {/if}
         <button class="add-card-btn" on:click={addCard}>＋</button>
 
         {#if loadingCards}
@@ -406,6 +477,28 @@
         {/if}
     </div>
 </main>
+
+{#if showDeleteConfirm && cardToDelete}
+    <div class="overlay">
+        <div class="modal">
+            <h3>
+                Sei sicuro di voler cancellare la card "{cardToDelete.name}"?
+            </h3>
+            <div class="modal-actions">
+                <button
+                    class="cancel-btn"
+                    on:click={() => {
+                        showDeleteConfirm = false;
+                        cardToDelete = null;
+                    }}>Annulla</button
+                >
+                <button class="confirm-btn" on:click={confirmDeleteCard}
+                    >Sì, cancella</button
+                >
+            </div>
+        </div>
+    </div>
+{/if}
 
 {#if showSelector}
     <CardSelector
@@ -529,6 +622,30 @@
     .add-card-btn:hover {
         transform: scale(1.1);
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    }
+    .delete-card-btn {
+        position: absolute;
+        bottom: 1.5rem;
+        right: 6.5rem;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255, 255, 255, 0.9);
+        color: #ef4444;
+        font-size: 1.5rem;
+        cursor: pointer;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+    .delete-card-btn:hover {
+        transform: scale(1.1);
+        background: #fee2e2;
+        box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
     }
     .progress-container {
         height: 8%;
@@ -654,6 +771,69 @@
     .dual-container .item-button img {
         max-height: 70%;
     }
+
+    .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+    }
+    .modal {
+        background: white;
+        padding: 2.5rem;
+        border-radius: 20px;
+        width: 90%;
+        max-width: 400px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        text-align: center;
+    }
+    .modal h3 {
+        margin: 0;
+        color: #333;
+        font-size: 1.25rem;
+        line-height: 1.5;
+    }
+    .modal-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    .cancel-btn,
+    .confirm-btn {
+        flex: 1;
+        padding: 0.75rem;
+        border: none;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .cancel-btn {
+        background: #f1f5f9;
+        color: #475569;
+    }
+    .cancel-btn:hover {
+        background: #e2e8f0;
+    }
+    .confirm-btn {
+        background: #ef4444;
+        color: white;
+    }
+    .confirm-btn:hover {
+        background: #dc2626;
+    }
+
     @media (max-width: 768px) {
         .back-button {
             padding: 0.75rem 1.5rem;

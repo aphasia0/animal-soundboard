@@ -16,11 +16,11 @@
     // Mic recording state
     let isRecording = false;
     let mediaRecorder = null;
-    let audioChunks = [];
     let recordedBlob = null;
     let recordedUrl = null;
     let recordingTime = 0;
     let recordingInterval = null;
+    let audioExtension = "webm"; // default, will update dynamically
 
     let currentUser;
     user.subscribe((v) => (currentUser = v));
@@ -100,7 +100,34 @@
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: true,
             });
-            mediaRecorder = new MediaRecorder(stream);
+            let selectedMimeType = "";
+
+            // iOS Safari usually supports audio/mp4. Android/Chrome supports audio/webm.
+            const types = [
+                "audio/webm",
+                "audio/mp4",
+                "audio/mpeg",
+                "audio/ogg;codecs=opus",
+            ];
+
+            for (let type of types) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    selectedMimeType = type;
+                    break;
+                }
+            }
+
+            const options = selectedMimeType
+                ? { mimeType: selectedMimeType }
+                : {};
+            mediaRecorder = new MediaRecorder(stream, options);
+
+            // Set extension based on chosen mimetype
+            if (selectedMimeType.includes("mp4")) audioExtension = "m4a";
+            else if (selectedMimeType.includes("mpeg")) audioExtension = "mp3";
+            else if (selectedMimeType.includes("ogg")) audioExtension = "ogg";
+            else audioExtension = "webm";
+
             audioChunks = [];
 
             mediaRecorder.ondataavailable = (e) => {
@@ -108,7 +135,10 @@
             };
 
             mediaRecorder.onstop = () => {
-                recordedBlob = new Blob(audioChunks, { type: "audio/webm" });
+                // Use the selected MIME type OR fallback to the recorder's actual MIME type
+                const finalMimeType =
+                    selectedMimeType || mediaRecorder.mimeType || "audio/webm";
+                recordedBlob = new Blob(audioChunks, { type: finalMimeType });
                 recordedUrl = URL.createObjectURL(recordedBlob);
                 stream.getTracks().forEach((t) => t.stop());
                 clearInterval(recordingInterval);
@@ -192,7 +222,7 @@
             .getPublicUrl(imgPath);
 
         // Upload sound
-        const soundPath = `${uid}/${ts}.webm`;
+        const soundPath = `${uid}/${ts}.${audioExtension}`;
         const { error: sndErr } = await supabase.storage
             .from("card-sounds")
             .upload(soundPath, recordedBlob);
