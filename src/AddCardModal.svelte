@@ -28,10 +28,70 @@
     function handleImageSelect(e) {
         const file = e.target.files[0];
         if (!file) return;
+
+        // Prevent loading non-images
+        if (!file.type.startsWith("image/")) {
+            error = "Seleziona un formato immagine valido";
+            return;
+        }
+
         imageFile = file;
         const reader = new FileReader();
         reader.onload = (ev) => (imagePreview = ev.target.result);
         reader.readAsDataURL(file);
+    }
+
+    // Compresses the image using a canvas context
+    async function compressImage(
+        file,
+        maxWidth = 800,
+        maxHeight = 800,
+        quality = 0.8,
+    ) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement("canvas");
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = Math.round((height *= maxWidth / width));
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width = Math.round((width *= maxHeight / height));
+                            height = maxHeight;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    canvas.toBlob(
+                        (blob) => {
+                            if (blob) {
+                                resolve(blob);
+                            } else {
+                                reject(new Error("Canvas to Blob failed"));
+                            }
+                        },
+                        "image/jpeg",
+                        quality,
+                    );
+                };
+                img.onerror = (err) => reject(err);
+                img.src = event.target.result;
+            };
+            reader.onerror = (err) => reject(err);
+            reader.readAsDataURL(file);
+        });
     }
 
     async function startRecording() {
@@ -99,12 +159,28 @@
         const uid = currentUser.id;
         const ts = Date.now();
 
-        // Upload image
-        const imgExt = imageFile.name.split(".").pop();
+        // Compress image before upload
+        let fileToUpload = imageFile;
+        let imgExt = imageFile.name.split(".").pop().toLowerCase();
+
+        try {
+            // Convert to a smaller JPEG
+            const compressedBlob = await compressImage(
+                imageFile,
+                800,
+                800,
+                0.8,
+            );
+            fileToUpload = compressedBlob;
+            imgExt = "jpg"; // Forcing extension since we convert to image/jpeg
+        } catch (err) {
+            console.error("Compression failed, uploading original", err);
+        }
+
         const imgPath = `${uid}/${ts}.${imgExt}`;
         const { error: imgErr } = await supabase.storage
             .from("card-images")
-            .upload(imgPath, imageFile);
+            .upload(imgPath, fileToUpload);
         if (imgErr) {
             error = "Errore upload immagine: " + imgErr.message;
             loading = false;
