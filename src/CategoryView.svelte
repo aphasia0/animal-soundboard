@@ -346,56 +346,57 @@
         <button class="select-btn" on:click={() => (showSelector = true)}
             >Seleziona</button
         >
-        <button
-            class="shuffle-btn"
-            class:active={shuffleMode}
-            on:click={() => dispatch("toggleShuffle", !shuffleMode)}
-            title={shuffleMode ? "Random" : "Sequenziale"}
-        >
-            <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                width="28"
-                height="28"
+        <div class="center-btns">
+            <button
+                class="shuffle-btn"
+                class:active={shuffleMode}
+                on:click={() => dispatch("toggleShuffle", !shuffleMode)}
+                title={shuffleMode ? "Random" : "Sequenziale"}
             >
-                <polyline points="16 3 21 3 21 8" />
-                <line x1="4" y1="20" x2="21" y2="3" />
-                <polyline points="21 16 21 21 16 21" />
-                <line x1="15" y1="15" x2="21" y2="21" />
-                <line x1="4" y1="4" x2="9" y2="9" />
-            </svg>
-        </button>
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    width="28"
+                    height="28"
+                >
+                    <polyline points="16 3 21 3 21 8" />
+                    <line x1="4" y1="20" x2="21" y2="3" />
+                    <polyline points="21 16 21 21 16 21" />
+                    <line x1="15" y1="15" x2="21" y2="21" />
+                    <line x1="4" y1="4" x2="9" y2="9" />
+                </svg>
+            </button>
 
-        <!-- Palette / Color Picker button -->
-        <button
-            class="palette-btn"
-            on:click={() => (showColorPicker = !showColorPicker)}
-            title="Colori card"
-        >
-            <!-- Palette icon -->
-            <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                width="26"
-                height="26"
+            <!-- Palette / Color Picker button -->
+            <button
+                class="palette-btn"
+                on:click={() => (showColorPicker = !showColorPicker)}
+                title="Colori card"
             >
-                <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
-                <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
-                <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
-                <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
-                <path
-                    d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"
-                />
-            </svg>
-        </button>
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    width="26"
+                    height="26"
+                >
+                    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+                    <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+                    <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+                    <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+                    <path
+                        d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"
+                    />
+                </svg>
+            </button>
+        </div>
 
         {#if showColorPicker}
             <div class="color-picker-popup">
@@ -440,37 +441,38 @@
             </div>
         {/if}
 
-        {#if isUserCategory && items.length > 0 && cardMode === 1}
-            <button
-                class="delete-card-btn"
-                on:click={() => {
-                    cardToDelete = items[currentIndex];
-                    showDeleteConfirm = true;
-                }}
-            >
-                <svg
-                    viewBox="0 0 24 24"
-                    width="24"
-                    height="24"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    fill="none"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+        <div class="action-btns">
+            {#if isUserCategory && items.length > 0 && cardMode === 1}
+                <button
+                    class="delete-card-btn"
+                    on:click={() => {
+                        cardToDelete = items[currentIndex];
+                        showDeleteConfirm = true;
+                    }}
                 >
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path
-                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                    ></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                </svg>
-            </button>
-        {/if}
-
-        {#if isUserCategory}
-            <button class="add-card-btn" on:click={addCard}>＋</button>
-        {/if}
+                    <svg
+                        viewBox="0 0 24 24"
+                        width="24"
+                        height="24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        fill="none"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path
+                            d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                        ></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                </button>
+            {/if}
+            {#if isUserCategory}
+                <button class="add-card-btn" on:click={addCard}>＋</button>
+            {/if}
+        </div>
 
         {#if loading}
             <div class="empty-state">
@@ -637,8 +639,7 @@
         position: relative;
     }
     .back-button,
-    .select-btn,
-    .shuffle-btn {
+    .select-btn {
         position: absolute;
         top: 1rem;
         background: rgba(255, 255, 255, 0.9);
@@ -663,19 +664,39 @@
     .select-btn {
         right: 1rem;
     }
-    .shuffle-btn {
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(255, 255, 255, 0.4);
-        padding: 0 1rem;
-        opacity: 0.5;
-        font-size: 1.4rem;
-    }
-    /* Palette button — positioned right of shuffle */
-    .palette-btn {
+    /* Centered flex container for shuffle + palette buttons */
+    .center-btns {
         position: absolute;
         top: 1rem;
-        left: calc(50% + 50px);
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
+        z-index: 10;
+    }
+    .shuffle-btn {
+        background: rgba(255, 255, 255, 0.4);
+        border: none;
+        border-radius: 15px;
+        height: 3.2rem;
+        padding: 0 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #667eea;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s;
+        opacity: 0.5;
+    }
+    .shuffle-btn.active {
+        background: rgba(255, 255, 255, 0.9);
+        opacity: 1;
+    }
+    /* Palette button — sits next to shuffle inside .center-btns */
+    .palette-btn {
         background: rgba(255, 255, 255, 0.9);
         border: none;
         border-radius: 15px;
@@ -688,7 +709,6 @@
         cursor: pointer;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         transition: all 0.2s;
-        z-index: 10;
         opacity: 1;
     }
     .palette-btn:hover {
@@ -787,38 +807,40 @@
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
     }
-    .shuffle-btn.active {
-        background: rgba(255, 255, 255, 0.9);
-        opacity: 1;
-    }
     .shuffle-btn:hover {
-        transform: translateX(-50%) translateY(-2px);
+        transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
     }
-    .delete-card-btn {
+    /* Bottom-right container for delete + add buttons */
+    .action-btns {
         position: absolute;
-        top: 5rem;
-        right: 1.2rem;
-        background: rgba(239, 68, 68, 0.2);
+        bottom: 1.5rem;
+        right: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.6rem;
+        z-index: 20;
+    }
+    .delete-card-btn {
+        background: rgba(239, 68, 68, 0.85);
         color: white;
         border: none;
         border-radius: 50%;
-        width: 44px;
-        height: 44px;
+        width: 52px;
+        height: 52px;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        z-index: 5;
         transition: all 0.2s;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
     }
     .delete-card-btn:hover {
-        background: rgba(239, 68, 68, 0.8);
+        background: rgba(239, 68, 68, 1);
+        transform: scale(1.05);
     }
     .add-card-btn {
-        position: absolute;
-        bottom: 1.5rem;
-        right: 1.5rem;
         width: 60px;
         height: 60px;
         border-radius: 50%;
@@ -828,7 +850,9 @@
         font-size: 30px;
         cursor: pointer;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     .progress-container {
         height: 8%;
