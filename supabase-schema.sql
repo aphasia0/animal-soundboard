@@ -108,7 +108,7 @@ create table if not exists user_confs (
   primary_color text not null default '#39ff14',
   secondary_color text not null default '#ff0000',
   max_time_ms int default 5000,  -- null = infinite/no timeout
-  restart_on_press boolean not null default true,  -- false = resume from where stopped
+  playback_mode text not null default 'restart',  -- 'restart' | 'resume' | 'autoplay'
   updated_at timestamptz default now()
 );
 

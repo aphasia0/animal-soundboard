@@ -107,18 +107,19 @@
     let showSelector = false;
     let showColorPicker = false;
     let showTimePicker = false;
+    let showPlaybackPicker = false;
     let customTimeInput = "";
 
-    // Color state — read from store, fallback to defaults
+    // --- State variables (declared BEFORE subscribe to avoid TDZ) ---
     let primaryColor = "#39ff14";
     let secondaryColor = "#ff0000";
     let currentUser = null;
+    let playbackMode = "restart"; // 'restart' | 'resume' | 'autoplay'
 
-    // Audio offset tracking for resume mode (in seconds) — declared BEFORE subscribe
+    // Audio offset tracking for resume mode (seconds)
     let audioOffset = 0;
     let audioOffsetA = 0;
     let audioOffsetB = 0;
-    let restartOnPress = true;
 
     user.subscribe((u) => {
         currentUser = u;
@@ -127,22 +128,49 @@
         primaryColor = s.primaryColor || "#39ff14";
         secondaryColor = s.secondaryColor || "#ff0000";
         maxTime = s.maxTimeMs !== undefined ? s.maxTimeMs : 5000;
-        restartOnPress =
-            s.restartOnPress !== undefined ? s.restartOnPress : true;
+        playbackMode = s.playbackMode || "restart";
     });
 
-    async function toggleRestartMode() {
-        const newVal = !restartOnPress;
-        // When switching back to restart mode, clear all saved offsets
-        if (newVal) {
+    async function savePlaybackMode(mode) {
+        // Clear saved offsets when leaving resume mode
+        if (mode !== "resume") {
             audioOffset = 0;
             audioOffsetA = 0;
             audioOffsetB = 0;
         }
+        // Stop any active autoplay
+        if (playbackMode === "autoplay") {
+            stopAllAutoplay();
+        }
         await settingsStore.updateSettings(
-            { restartOnPress: newVal },
+            { playbackMode: mode },
             currentUser?.id,
         );
+        showPlaybackPicker = false;
+    }
+
+    function stopAllAutoplay() {
+        if (isPressed) {
+            isPressed = false;
+            stopAudio();
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            progress = 0;
+            accumulatedTime = 0;
+        }
+        if (isPressedA) {
+            isPressedA = false;
+            stopAudioChannel("cardA");
+            if (animationFrameIdA) cancelAnimationFrame(animationFrameIdA);
+            progressA = 0;
+            accumulatedTimeA = 0;
+        }
+        if (isPressedB) {
+            isPressedB = false;
+            stopAudioChannel("cardB");
+            if (animationFrameIdB) cancelAnimationFrame(animationFrameIdB);
+            progressB = 0;
+            accumulatedTimeB = 0;
+        }
     }
 
     const TIME_PRESETS = [
@@ -150,7 +178,7 @@
         { label: "5s", value: 5000 },
         { label: "10s", value: 10000 },
         { label: "30s", value: 30000 },
-        { label: "\u221e", value: null }, // infinite
+        { label: "\u221e", value: null },
     ];
 
     async function saveTime(ms) {
@@ -158,17 +186,14 @@
         showTimePicker = false;
         customTimeInput = "";
     }
-
     async function saveCustomTime() {
         const secs = parseFloat(customTimeInput);
         if (!secs || secs <= 0) return;
         await saveTime(Math.round(secs * 1000));
     }
-
     function timeLabel(ms) {
         if (ms === null) return "\u221e";
-        if (ms < 1000) return ms + "ms";
-        return ms / 1000 + "s";
+        return ms < 1000 ? ms + "ms" : ms / 1000 + "s";
     }
 
     async function saveColors() {
@@ -178,7 +203,6 @@
         );
         showColorPicker = false;
     }
-
     async function resetColors() {
         primaryColor = "#39ff14";
         secondaryColor = "#ff0000";
@@ -192,8 +216,6 @@
     function handleCardSelect(e) {
         const { category, item, index } = e.detail;
         showSelector = false;
-        // In the original components, jumpTo was handled by App.svelte usually.
-        // But internal state needs to update too.
         if (category === (categoryId || categoryKey)) {
             currentIndex = index;
             indexA = index;
@@ -211,32 +233,51 @@
 
     function confirmDeleteCard() {
         if (!cardToDelete) return;
-        const deletedCard = cardToDelete;
-
-        // Dispatch to parent to handle actual DB/Storage deletion
-        dispatch("deleteCard", { card: deletedCard });
-
-        // Local state cleanup
+        dispatch("deleteCard", { card: cardToDelete });
         showDeleteConfirm = false;
         cardToDelete = null;
     }
 
-    // Single card logic
+    // ─── Single card ───────────────────────────────────────────────────────────
     function handlePressStart() {
-        if (isPressed || items.length === 0) return;
+        if (items.length === 0) return;
+
+        if (playbackMode === "autoplay") {
+            // Toggle: click while playing → stop; click while stopped → start
+            if (isPressed) {
+                isPressed = false;
+                stopAudio();
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                progress = 0;
+                accumulatedTime = 0;
+                return;
+            }
+            isPressed = true;
+            pressStartTime = Date.now();
+            accumulatedTime = 0;
+            resumeAudioContext();
+            playAudio(items[currentIndex].sound, 0);
+            updateProgress();
+            return;
+        }
+
+        if (isPressed) return;
         isPressed = true;
         pressStartTime = Date.now();
         resumeAudioContext();
-        const offset = restartOnPress ? 0 : audioOffset;
-        playAudio(items[currentIndex].sound, offset);
+        playAudio(
+            items[currentIndex].sound,
+            playbackMode === "resume" ? audioOffset : 0,
+        );
         updateProgress();
     }
     function handlePressEnd() {
         if (!isPressed) return;
+        if (playbackMode === "autoplay") return; // autoplay ignores release
         isPressed = false;
         accumulatedTime += Date.now() - pressStartTime;
         const offset = stopAudio();
-        if (!restartOnPress) audioOffset = offset;
+        if (playbackMode === "resume") audioOffset = offset;
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         if (maxTime !== null && accumulatedTime >= maxTime) next();
         else if (maxTime !== null) progress = (accumulatedTime / maxTime) * 100;
@@ -245,13 +286,26 @@
         if (!isPressed) return;
         const t = accumulatedTime + (Date.now() - pressStartTime);
         if (maxTime === null) {
-            // Infinite mode: no auto-advance, just keep animating (CSS handles it)
             animationFrameId = requestAnimationFrame(updateProgress);
             return;
         }
         progress = Math.min((t / maxTime) * 100, 100);
         if (t >= maxTime) {
-            handlePressEnd();
+            if (playbackMode === "autoplay") {
+                // Auto-advance without stopping
+                accumulatedTime = 0;
+                pressStartTime = Date.now();
+                progress = 0;
+                stopAudio();
+                if (shuffleMode) currentIndex = getRandomIndex(currentIndex);
+                else currentIndex = (currentIndex + 1) % items.length;
+                audioOffset = 0;
+                resumeAudioContext();
+                playAudio(items[currentIndex].sound, 0);
+                animationFrameId = requestAnimationFrame(updateProgress);
+            } else {
+                handlePressEnd();
+            }
         } else {
             animationFrameId = requestAnimationFrame(updateProgress);
         }
@@ -259,30 +313,51 @@
     function next() {
         progress = 0;
         accumulatedTime = 0;
-        audioOffset = 0; // reset audio position on card advance
-        if (shuffleMode) {
-            currentIndex = getRandomIndex(currentIndex);
-        } else {
-            currentIndex = (currentIndex + 1) % items.length;
-        }
+        audioOffset = 0;
+        if (shuffleMode) currentIndex = getRandomIndex(currentIndex);
+        else currentIndex = (currentIndex + 1) % items.length;
     }
 
-    // Dual card logic
+    // ─── Dual card A ───────────────────────────────────────────────────────────
     function handlePressStartA() {
-        if (isPressedA || items.length === 0) return;
+        if (items.length === 0) return;
+
+        if (playbackMode === "autoplay") {
+            if (isPressedA) {
+                isPressedA = false;
+                stopAudioChannel("cardA");
+                if (animationFrameIdA) cancelAnimationFrame(animationFrameIdA);
+                progressA = 0;
+                accumulatedTimeA = 0;
+                return;
+            }
+            isPressedA = true;
+            pressStartTimeA = Date.now();
+            accumulatedTimeA = 0;
+            resumeAudioContext();
+            playAudioChannel(items[indexA].sound, "cardA", 0);
+            updateProgressA();
+            return;
+        }
+
+        if (isPressedA) return;
         isPressedA = true;
         pressStartTimeA = Date.now();
         resumeAudioContext();
-        const offset = restartOnPress ? 0 : audioOffsetA;
-        playAudioChannel(items[indexA].sound, "cardA", offset);
+        playAudioChannel(
+            items[indexA].sound,
+            "cardA",
+            playbackMode === "resume" ? audioOffsetA : 0,
+        );
         updateProgressA();
     }
     function handlePressEndA() {
         if (!isPressedA) return;
+        if (playbackMode === "autoplay") return;
         isPressedA = false;
         accumulatedTimeA += Date.now() - pressStartTimeA;
         const offset = stopAudioChannel("cardA");
-        if (!restartOnPress) audioOffsetA = offset;
+        if (playbackMode === "resume") audioOffsetA = offset;
         if (animationFrameIdA) cancelAnimationFrame(animationFrameIdA);
         if (maxTime !== null && accumulatedTimeA >= maxTime) nextA();
         else if (maxTime !== null)
@@ -297,7 +372,20 @@
         }
         progressA = Math.min((t / maxTime) * 100, 100);
         if (t >= maxTime) {
-            handlePressEndA();
+            if (playbackMode === "autoplay") {
+                accumulatedTimeA = 0;
+                pressStartTimeA = Date.now();
+                progressA = 0;
+                stopAudioChannel("cardA");
+                if (shuffleMode) indexA = getRandomIndex(indexA);
+                else indexA = (indexA + 1) % items.length;
+                audioOffsetA = 0;
+                resumeAudioContext();
+                playAudioChannel(items[indexA].sound, "cardA", 0);
+                animationFrameIdA = requestAnimationFrame(updateProgressA);
+            } else {
+                handlePressEndA();
+            }
         } else {
             animationFrameIdA = requestAnimationFrame(updateProgressA);
         }
@@ -306,28 +394,50 @@
         progressA = 0;
         accumulatedTimeA = 0;
         audioOffsetA = 0;
-        if (shuffleMode) {
-            indexA = getRandomIndex(indexA);
-        } else {
-            indexA = (indexA + 1) % items.length;
-        }
+        if (shuffleMode) indexA = getRandomIndex(indexA);
+        else indexA = (indexA + 1) % items.length;
     }
 
+    // ─── Dual card B ───────────────────────────────────────────────────────────
     function handlePressStartB() {
-        if (isPressedB || items.length === 0) return;
+        if (items.length === 0) return;
+
+        if (playbackMode === "autoplay") {
+            if (isPressedB) {
+                isPressedB = false;
+                stopAudioChannel("cardB");
+                if (animationFrameIdB) cancelAnimationFrame(animationFrameIdB);
+                progressB = 0;
+                accumulatedTimeB = 0;
+                return;
+            }
+            isPressedB = true;
+            pressStartTimeB = Date.now();
+            accumulatedTimeB = 0;
+            resumeAudioContext();
+            playAudioChannel(items[indexB].sound, "cardB", 0);
+            updateProgressB();
+            return;
+        }
+
+        if (isPressedB) return;
         isPressedB = true;
         pressStartTimeB = Date.now();
         resumeAudioContext();
-        const offset = restartOnPress ? 0 : audioOffsetB;
-        playAudioChannel(items[indexB].sound, "cardB", offset);
+        playAudioChannel(
+            items[indexB].sound,
+            "cardB",
+            playbackMode === "resume" ? audioOffsetB : 0,
+        );
         updateProgressB();
     }
     function handlePressEndB() {
         if (!isPressedB) return;
+        if (playbackMode === "autoplay") return;
         isPressedB = false;
         accumulatedTimeB += Date.now() - pressStartTimeB;
         const offset = stopAudioChannel("cardB");
-        if (!restartOnPress) audioOffsetB = offset;
+        if (playbackMode === "resume") audioOffsetB = offset;
         if (animationFrameIdB) cancelAnimationFrame(animationFrameIdB);
         if (maxTime !== null && accumulatedTimeB >= maxTime) nextB();
         else if (maxTime !== null)
@@ -342,7 +452,20 @@
         }
         progressB = Math.min((t / maxTime) * 100, 100);
         if (t >= maxTime) {
-            handlePressEndB();
+            if (playbackMode === "autoplay") {
+                accumulatedTimeB = 0;
+                pressStartTimeB = Date.now();
+                progressB = 0;
+                stopAudioChannel("cardB");
+                if (shuffleMode) indexB = getRandomIndex(indexB);
+                else indexB = (indexB + 1) % items.length;
+                audioOffsetB = 0;
+                resumeAudioContext();
+                playAudioChannel(items[indexB].sound, "cardB", 0);
+                animationFrameIdB = requestAnimationFrame(updateProgressB);
+            } else {
+                handlePressEndB();
+            }
         } else {
             animationFrameIdB = requestAnimationFrame(updateProgressB);
         }
@@ -351,11 +474,8 @@
         progressB = 0;
         accumulatedTimeB = 0;
         audioOffsetB = 0;
-        if (shuffleMode) {
-            indexB = getRandomIndex(indexB);
-        } else {
-            indexB = (indexB + 1) % items.length;
-        }
+        if (shuffleMode) indexB = getRandomIndex(indexB);
+        else indexB = (indexB + 1) % items.length;
     }
 
     // Keyboard support
@@ -495,46 +615,32 @@
                 </svg>
             </button>
 
-            <!-- Restart / Resume toggle button -->
+            <!-- Playback Mode button -->
             <button
                 class="palette-btn"
-                class:restart-active={restartOnPress}
-                on:click={toggleRestartMode}
-                title={restartOnPress
-                    ? "Ricomincia da capo (clicca per passare a Riprendi)"
-                    : "Riprendi da dove era (clicca per tornare a Ricomincia)"}
+                class:playback-autoplay={playbackMode === "autoplay"}
+                class:playback-resume={playbackMode === "resume"}
+                on:click={() => (showPlaybackPicker = !showPlaybackPicker)}
+                title="Modalità riproduzione ({playbackMode})"
             >
-                {#if restartOnPress}
-                    <!-- Skip-back icon: restart mode -->
-                    <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        width="26"
-                        height="26"
-                    >
-                        <polyline points="1 4 1 10 7 10" />
-                        <path d="M3.51 15a9 9 0 1 0 .49-4.5" />
-                    </svg>
-                {:else}
-                    <!-- Pause-resume icon: resume mode -->
-                    <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        width="26"
-                        height="26"
-                    >
-                        <rect x="6" y="4" width="4" height="16" />
-                        <rect x="14" y="4" width="4" height="16" />
-                    </svg>
-                {/if}
+                <!-- Play-settings icon -->
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    width="26"
+                    height="26"
+                >
+                    <polygon
+                        points="5 3 19 12 5 21 5 3"
+                        fill="currentColor"
+                        opacity="0.15"
+                    />
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
             </button>
         </div>
 
@@ -618,6 +724,97 @@
                     class="color-cancel"
                     style="width:100%;margin-top:0.5rem"
                     on:click={() => (showTimePicker = false)}>Annulla</button
+                >
+            </div>
+        {/if}
+
+        {#if showPlaybackPicker}
+            <div class="color-picker-popup" style="min-width:280px">
+                <div class="color-picker-title">▶ Modalità Riproduzione</div>
+                <div class="playback-options">
+                    <button
+                        class="playback-opt-btn"
+                        class:active={playbackMode === "restart"}
+                        on:click={() => savePlaybackMode("restart")}
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            width="24"
+                            height="24"
+                            ><polyline points="1 4 1 10 7 10" /><path
+                                d="M3.51 15a9 9 0 1 0 .49-4.5"
+                            /></svg
+                        >
+                        <div>
+                            <strong>Ricomincia</strong><br /><small
+                                >Ogni click riparte dall'inizio</small
+                            >
+                        </div>
+                    </button>
+                    <button
+                        class="playback-opt-btn"
+                        class:active={playbackMode === "resume"}
+                        on:click={() => savePlaybackMode("resume")}
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            width="24"
+                            height="24"
+                            ><rect x="6" y="4" width="4" height="16" /><rect
+                                x="14"
+                                y="4"
+                                width="4"
+                                height="16"
+                            /></svg
+                        >
+                        <div>
+                            <strong>Riprendi</strong><br /><small
+                                >Pausa/riprendi da dove era</small
+                            >
+                        </div>
+                    </button>
+                    <button
+                        class="playback-opt-btn"
+                        class:active={playbackMode === "autoplay"}
+                        on:click={() => savePlaybackMode("autoplay")}
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            width="24"
+                            height="24"
+                            ><polygon points="5 3 19 12 5 21 5 3" /><line
+                                x1="19"
+                                y1="3"
+                                x2="19"
+                                y2="21"
+                            /></svg
+                        >
+                        <div>
+                            <strong>Autoplay</strong><br /><small
+                                >Un click, scorre da solo</small
+                            >
+                        </div>
+                    </button>
+                </div>
+                <button
+                    class="color-cancel"
+                    style="width:100%;margin-top:0.75rem"
+                    on:click={() => (showPlaybackPicker = false)}>Chiudi</button
                 >
             </div>
         {/if}
@@ -1033,15 +1230,53 @@
         background: #667eea;
         color: white;
     }
-    /* Highlight restart button when restart mode is on (default/active state) */
-    .palette-btn.restart-active {
-        background: rgba(255, 255, 255, 0.9);
-        color: #667eea;
-    }
-    /* Resume mode (not restart): show as orange/amber to indicate different state */
-    .palette-btn:not(.restart-active):has(rect) {
-        background: #fb923c;
+    /* Playback button states */
+    .palette-btn.playback-autoplay {
+        background: #10b981; /* green — actively running story mode */
         color: white;
+    }
+    .palette-btn.playback-resume {
+        background: #f59e0b; /* amber — resume/pause mode */
+        color: white;
+    }
+    /* Playback mode popup options */
+    .playback-options {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .playback-opt-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.65rem 0.75rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 0.9rem;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.18s;
+    }
+    .playback-opt-btn:hover {
+        border-color: #667eea;
+        background: #eef2ff;
+    }
+    .playback-opt-btn.active {
+        border-color: #667eea;
+        background: #667eea;
+        color: white;
+    }
+    .playback-opt-btn svg {
+        flex-shrink: 0;
+    }
+    .playback-opt-btn small {
+        opacity: 0.75;
+        font-size: 0.78rem;
+    }
+    .playback-opt-btn.active small {
+        opacity: 0.9;
     }
     /* Infinite mode: pulsing progress bar */
     @keyframes infinitePulse {

@@ -8,8 +8,8 @@ const defaultSettings = {
     shuffleMode: true,
     primaryColor: '#39ff14',
     secondaryColor: '#ff0000',
-    maxTimeMs: 5000,           // null = infinite
-    restartOnPress: true,      // true = restart from beginning each press; false = resume
+    maxTimeMs: 5000,              // null = infinite
+    playbackMode: 'restart',      // 'restart' | 'resume' | 'autoplay'
     hasSettings: false
 };
 
@@ -49,7 +49,7 @@ function createSettingsStore() {
                         primaryColor: data.primary_color || defaultSettings.primaryColor,
                         secondaryColor: data.secondary_color || defaultSettings.secondaryColor,
                         maxTimeMs: data.max_time_ms !== undefined ? data.max_time_ms : defaultSettings.maxTimeMs,
-                        restartOnPress: data.restart_on_press !== undefined ? data.restart_on_press : defaultSettings.restartOnPress,
+                        playbackMode: data.playback_mode || defaultSettings.playbackMode,
                         hasSettings: true
                     };
                     set(settings);
@@ -81,7 +81,7 @@ function createSettingsStore() {
                         primary_color: updated.primaryColor,
                         secondary_color: updated.secondaryColor,
                         max_time_ms: updated.maxTimeMs,
-                        restart_on_press: updated.restartOnPress,
+                        playback_mode: updated.playbackMode,
                         updated_at: new Date().toISOString()
                     });
                 } catch (e) {
