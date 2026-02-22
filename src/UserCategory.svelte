@@ -394,6 +394,7 @@
             </div>
             <button
                 class="item-button"
+                class:pressed={isPressed}
                 on:mousedown={() => {
                     if (!isTouchDevice) handlePressStart();
                 }}
@@ -424,6 +425,7 @@
                     </div>
                     <button
                         class="item-button"
+                        class:pressed={isPressedA}
                         on:mousedown={() => {
                             if (!isTouchDevice) handlePressStartA();
                         }}
@@ -453,6 +455,7 @@
                     </div>
                     <button
                         class="item-button"
+                        class:pressed={isPressedB}
                         on:mousedown={() => {
                             if (!isTouchDevice) handlePressStartB();
                         }}
@@ -672,8 +675,8 @@
         overflow: hidden;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
         transition:
-            transform 0.01s,
-            box-shadow 0.01s;
+            transform 0.1s ease,
+            box-shadow 0.1s ease;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -683,8 +686,11 @@
         user-select: none;
         -webkit-user-select: none;
         -webkit-touch-callout: none;
+        outline: none;
+        -webkit-tap-highlight-color: transparent;
     }
-    .item-button:active {
+    .item-button:active,
+    .item-button.pressed {
         transform: scale(0.93);
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
     }
