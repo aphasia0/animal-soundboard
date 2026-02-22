@@ -17,13 +17,12 @@
     export let categoryId = null; // For custom categories
     export let categoryKey = ""; // For native categories (animals, etc.)
     export let cardMode = 1;
+    export let shuffleMode = true;
     export let isUserCategory = false;
     export let loading = false;
 
     const dispatch = createEventDispatcher();
     const MAX_TIME = 5000;
-
-    let shuffleMode = true;
     let isTouchDevice = false;
     let isLandscape = false;
 
@@ -314,7 +313,7 @@
         <button
             class="shuffle-btn"
             class:active={shuffleMode}
-            on:click={() => (shuffleMode = !shuffleMode)}
+            on:click={() => dispatch("toggleShuffle", !shuffleMode)}
             title={shuffleMode ? "Random" : "Sequenziale"}
         >
             <svg

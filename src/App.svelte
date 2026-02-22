@@ -8,6 +8,7 @@
   import AddCardModal from "./AddCardModal.svelte";
   import { initAuth, user } from "./authStore.js";
   import { getSupabase } from "./supabaseClient.js";
+  import { settingsStore } from "./settingsStore.js";
 
   // Data imports
   import { animals } from "./animals.js";
@@ -25,8 +26,18 @@
 
   let currentView = "modeSelect";
   let selectedCategory = null;
-  let selectedCardMode = 1;
   let selectedUserCategory = null;
+
+  let selectedCardMode = 1;
+  let settings;
+  settingsStore.subscribe((v) => {
+    settings = v;
+    if (v.cardMode) selectedCardMode = v.cardMode;
+    // Auto-skip mode select if settings are present and we are at the start
+    if (v.hasSettings && currentView === "modeSelect") {
+      currentView = "home";
+    }
+  });
 
   // Modal state
   let showAuthModal = false;
@@ -35,7 +46,12 @@
   let addCardCategoryId = null;
 
   let currentUser;
-  user.subscribe((v) => (currentUser = v));
+  user.subscribe((v) => {
+    currentUser = v;
+    if (v) {
+      settingsStore.loadFromSupabase(v.id);
+    }
+  });
 
   const locale = "it";
 
@@ -136,7 +152,9 @@
   });
 
   function handleModeSelect(event) {
-    selectedCardMode = event.detail;
+    const mode = event.detail;
+    selectedCardMode = mode;
+    settingsStore.updateSettings({ cardMode: mode }, currentUser?.id);
     currentView = "home";
   }
 
@@ -232,7 +250,10 @@
     items={animalsItems}
     categoryKey="animals"
     cardMode={selectedCardMode}
+    shuffleMode={settings.shuffleMode}
     on:back={handleBack}
+    on:toggleShuffle={(e) =>
+      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "work"}
@@ -240,7 +261,10 @@
     items={jobsItems}
     categoryKey="work"
     cardMode={selectedCardMode}
+    shuffleMode={settings.shuffleMode}
     on:back={handleBack}
+    on:toggleShuffle={(e) =>
+      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "music"}
@@ -248,7 +272,10 @@
     items={musicItems}
     categoryKey="music"
     cardMode={selectedCardMode}
+    shuffleMode={settings.shuffleMode}
     on:back={handleBack}
+    on:toggleShuffle={(e) =>
+      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "people"}
@@ -256,7 +283,10 @@
     items={peopleItems}
     categoryKey="people"
     cardMode={selectedCardMode}
+    shuffleMode={settings.shuffleMode}
     on:back={handleBack}
+    on:toggleShuffle={(e) =>
+      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "sentences"}
@@ -264,7 +294,10 @@
     items={sentencesItems}
     categoryKey="sentences"
     cardMode={selectedCardMode}
+    shuffleMode={settings.shuffleMode}
     on:back={handleBack}
+    on:toggleShuffle={(e) =>
+      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "userCategory"}
@@ -274,9 +307,12 @@
     isUserCategory={true}
     loading={loadingUserCards}
     cardMode={selectedCardMode}
+    shuffleMode={settings.shuffleMode}
     on:back={handleBack}
     on:addCard={handleAddCard}
     on:deleteCard={handleDeleteCard}
+    on:toggleShuffle={(e) =>
+      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {/if}

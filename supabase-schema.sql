@@ -99,3 +99,28 @@ create policy "Users can delete own sounds"
   on storage.objects for delete
   to authenticated
   using (bucket_id = 'card-sounds' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- 9. User Settings table
+create table if not exists user_confs (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  card_mode int not null default 1,
+  shuffle_mode boolean not null default true,
+  updated_at timestamptz default now()
+);
+
+-- 10. Enable RLS for settings
+alter table user_confs enable row level security;
+
+-- 11. RLS Policies - Settings
+create policy "Users can view own settings"
+  on user_confs for select
+  using (auth.uid() = user_id);
+
+create policy "Users can update own settings"
+  on user_confs for update
+  using (auth.uid() = user_id);
+
+create policy "Users can insert own settings"
+  on user_confs for insert
+  with check (auth.uid() = user_id);
+
