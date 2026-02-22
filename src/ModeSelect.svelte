@@ -3,44 +3,67 @@
 
     const dispatch = createEventDispatcher();
 
-    const modes = [
-        {
-            id: 1,
-            name: "Una Card",
-            emoji: "🃏",
-            description: "Modalità classica",
-        },
-        {
-            id: 2,
-            name: "Due Card",
-            emoji: "🃏🃏",
-            description: "Due card affiancate",
-        },
-    ];
-
-    function selectMode(mode) {
-        dispatch("select", mode.id);
-    }
-
-    function goBack() {
-        dispatch("back");
+    function selectMode(cardMode) {
+        dispatch("select", cardMode);
     }
 </script>
 
 <main>
     <div class="mode-select">
-        <button class="back-button" on:click={goBack}> ← Indietro </button>
-
         <h3 class="title">Scegli Modalità</h3>
 
         <div class="grid">
-            {#each modes as mode}
-                <button class="card" on:click={() => selectMode(mode)}>
-                    <div class="emoji">{mode.emoji}</div>
-                    <div class="name">{mode.name}</div>
-                    <div class="description">{mode.description}</div>
-                </button>
-            {/each}
+            <button class="card enabled" on:click={() => selectMode(1)}>
+                <div class="icon-container">
+                    <svg class="mode-icon" viewBox="0 0 60 80" fill="none">
+                        <rect
+                            x="4"
+                            y="4"
+                            width="52"
+                            height="72"
+                            rx="8"
+                            fill="#667eea"
+                            stroke="#5a6fd6"
+                            stroke-width="3"
+                        />
+                    </svg>
+                </div>
+                <div class="name">Una Card</div>
+                <div class="description">Modalità classica</div>
+            </button>
+
+            <button class="card enabled" on:click={() => selectMode(2)}>
+                <div class="icon-container">
+                    <svg
+                        class="mode-icon dual-icon"
+                        viewBox="0 0 100 80"
+                        fill="none"
+                    >
+                        <rect
+                            x="4"
+                            y="4"
+                            width="42"
+                            height="72"
+                            rx="7"
+                            fill="#667eea"
+                            stroke="#5a6fd6"
+                            stroke-width="3"
+                        />
+                        <rect
+                            x="54"
+                            y="4"
+                            width="42"
+                            height="72"
+                            rx="7"
+                            fill="#764ba2"
+                            stroke="#6a3f96"
+                            stroke-width="3"
+                        />
+                    </svg>
+                </div>
+                <div class="name">Due Card</div>
+                <div class="description">Due card affiancate</div>
+            </button>
         </div>
     </div>
 </main>
@@ -67,31 +90,8 @@
         position: relative;
     }
 
-    .back-button {
-        position: absolute;
-        top: 1rem;
-        left: 1rem;
-        background: rgba(255, 255, 255, 0.9);
-        border: none;
-        border-radius: 15px;
-        padding: 1rem 2rem;
-        font-size: 1.2rem;
-        font-weight: bold;
-        color: #667eea;
-        cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        transition: all 0.2s;
-        z-index: 10;
-    }
-
-    .back-button:hover {
-        background: white;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-    }
-
-    .back-button:active {
-        transform: translateY(0);
+    .card.enabled {
+        background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
     }
 
     .title {
@@ -138,10 +138,21 @@
         transform: translateY(-5px) scale(1.02);
     }
 
-    .emoji {
-        font-size: 6rem;
+    .icon-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100px;
         margin-bottom: 1rem;
-        line-height: 1;
+    }
+
+    .mode-icon {
+        width: 70px;
+        height: 95px;
+    }
+
+    .mode-icon.dual-icon {
+        width: 115px;
     }
 
     .name {
@@ -175,8 +186,13 @@
             border-radius: 20px;
         }
 
-        .emoji {
-            font-size: 4rem;
+        .mode-icon {
+            width: 50px;
+            height: 70px;
+        }
+
+        .mode-icon.dual-icon {
+            width: 85px;
         }
 
         .name {
@@ -187,13 +203,6 @@
             font-size: 1rem;
         }
 
-        .back-button {
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-        }
-    }
-
-    @media (max-width: 480px) {
         .mode-select {
             padding: 1rem;
         }
@@ -212,8 +221,13 @@
             min-height: 150px;
         }
 
-        .emoji {
-            font-size: 3rem;
+        .mode-icon {
+            width: 40px;
+            height: 55px;
+        }
+
+        .mode-icon.dual-icon {
+            width: 65px;
         }
 
         .name {

@@ -298,11 +298,22 @@
             on:click={() => (shuffleMode = !shuffleMode)}
             title={shuffleMode ? "Random" : "Sequenziale"}
         >
-            <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"
-                ><path
-                    d="M18 9l3 3-3 3v-2h-2.17a3 3 0 0 1-2.12-.88L12 8.41 9.29 11.12A3 3 0 0 1 7.17 12H4v-2h3.17a1 1 0 0 0 .71-.29L12 5.59l4.12 4.12a1 1 0 0 0 .71.29H18V9zM4 14h3.17a3 3 0 0 1 2.12.88L12 17.59l2.71-2.71A3 3 0 0 1 16.83 14H18v-1l3 3-3 3v-2h-1.17a1 1 0 0 0-.71.29L12 21.41l-4.12-4.12A1 1 0 0 0 7.17 17H4v-3z"
-                /></svg
+            <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                width="28"
+                height="28"
             >
+                <polyline points="16 3 21 3 21 8" />
+                <line x1="4" y1="20" x2="21" y2="3" />
+                <polyline points="21 16 21 21 16 21" />
+                <line x1="15" y1="15" x2="21" y2="21" />
+                <line x1="4" y1="4" x2="9" y2="9" />
+            </svg>
         </button>
 
         {#if cardMode === 1}
@@ -489,6 +500,7 @@
         border-radius: 15px;
         padding: 0.75rem 1.2rem;
         font-size: 1.4rem;
+        color: #667eea;
         cursor: pointer;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         transition: all 0.2s;

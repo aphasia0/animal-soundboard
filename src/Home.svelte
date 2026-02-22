@@ -3,6 +3,11 @@
     import { createEventDispatcher } from "svelte";
     import { user, signOut } from "./authStore.js";
     import { getSupabase } from "./supabaseClient.js";
+    import { animals } from "./animals.js";
+    import { jobs } from "./jobs.js";
+    import { music } from "./music.js";
+    import { people } from "./people.js";
+    import { sentences } from "./sentences.js";
 
     const dispatch = createEventDispatcher();
 
@@ -12,39 +17,38 @@
             name: "Animali",
             emoji: "🦁",
             enabled: true,
-            description: "50 animali",
+            description: `${animals.length} animali`,
         },
         {
             id: "work",
             name: "Lavoro",
             emoji: "🔨",
             enabled: true,
-            description: "10 lavori",
+            description: `${jobs.length} lavori`,
         },
         {
             id: "people",
             name: "Persone",
             emoji: "👨‍👩‍👧‍👦",
             enabled: true,
-            description: "5 persone",
+            description: `${people.length} persone`,
         },
         {
             id: "music",
             name: "Musica",
             emoji: "🎵",
             enabled: true,
-            description: "10 canzoni",
+            description: `${music.length} canzoni`,
         },
         {
             id: "sentences",
             name: "Frasi",
             emoji: "💬",
             enabled: true,
-            description: "8 frasi",
+            description: `${sentences.length} frasi`,
         },
     ];
 
-    let cardMode = 1;
     let currentUser;
     user.subscribe((v) => (currentUser = v));
 
@@ -66,20 +70,24 @@
         if (!supabase) return;
         const { data } = await supabase
             .from("user_categories")
-            .select("*")
+            .select("*, user_cards(count)")
             .eq("user_id", currentUser.id)
             .order("created_at");
-        userCategories = data || [];
+
+        userCategories = (data || []).map((cat) => ({
+            ...cat,
+            cardCount: cat.user_cards?.[0]?.count || 0,
+        }));
     }
 
     function selectCategory(category) {
         if (category.enabled) {
-            dispatch("select", { categoryId: category.id, cardMode });
+            dispatch("select", { categoryId: category.id });
         }
     }
 
     function selectUserCategory(cat) {
-        dispatch("selectUserCategory", { category: cat, cardMode });
+        dispatch("selectUserCategory", { category: cat });
     }
 
     function handleAddCategory() {
@@ -103,12 +111,17 @@
         showUserMenu = false;
         userCategories = [];
     }
+
+    function goBack() {
+        dispatch("back");
+    }
 </script>
 
 <main>
     <div class="home">
         <!-- Auth button -->
         <div class="auth-area">
+            <button class="back-button" on:click={goBack}> ← Cambia </button>
             <button class="auth-btn" on:click={handleLoginClick}>
                 {#if currentUser}
                     <span class="user-avatar">👤</span>
@@ -127,62 +140,6 @@
         </div>
 
         <h3 class="title">Sound Pad</h3>
-
-        <!-- Mode toggle -->
-        <div class="mode-toggle">
-            <button
-                class="mode-btn"
-                class:active={cardMode === 1}
-                on:click={() => (cardMode = 1)}
-            >
-                <svg class="mode-icon" viewBox="0 0 60 80" fill="none">
-                    <rect
-                        x="4"
-                        y="4"
-                        width="52"
-                        height="72"
-                        rx="8"
-                        fill={cardMode === 1 ? "#667eea" : "#ccc"}
-                        stroke={cardMode === 1 ? "#5a6fd6" : "#bbb"}
-                        stroke-width="3"
-                    />
-                </svg>
-                <span class="mode-label">Una Card</span>
-            </button>
-            <button
-                class="mode-btn"
-                class:active={cardMode === 2}
-                on:click={() => (cardMode = 2)}
-            >
-                <svg
-                    class="mode-icon dual-icon"
-                    viewBox="0 0 100 80"
-                    fill="none"
-                >
-                    <rect
-                        x="4"
-                        y="4"
-                        width="42"
-                        height="72"
-                        rx="7"
-                        fill={cardMode === 2 ? "#667eea" : "#ccc"}
-                        stroke={cardMode === 2 ? "#5a6fd6" : "#bbb"}
-                        stroke-width="3"
-                    />
-                    <rect
-                        x="54"
-                        y="4"
-                        width="42"
-                        height="72"
-                        rx="7"
-                        fill={cardMode === 2 ? "#764ba2" : "#ccc"}
-                        stroke={cardMode === 2 ? "#6a3f96" : "#bbb"}
-                        stroke-width="3"
-                    />
-                </svg>
-                <span class="mode-label">Due Card</span>
-            </button>
-        </div>
 
         <div class="grid">
             {#each categories as category}
@@ -206,7 +163,10 @@
                 >
                     <div class="emoji">{ucat.emoji}</div>
                     <div class="name">{ucat.name}</div>
-                    <div class="description">Personalizzata</div>
+                    <div class="description">
+                        {ucat.cardCount}
+                        {ucat.cardCount === 1 ? "card" : "card"}
+                    </div>
                 </button>
             {/each}
 
@@ -251,8 +211,28 @@
     .auth-area {
         position: fixed;
         top: 1rem;
+        left: 1rem;
         right: 1rem;
+        display: flex;
+        justify-content: space-between;
         z-index: 100;
+    }
+    .back-button {
+        background: rgba(255, 255, 255, 0.9);
+        border: none;
+        border-radius: 15px;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        font-weight: bold;
+        color: #667eea;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s;
+    }
+    .back-button:hover {
+        background: white;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
     }
     .auth-btn {
         background: rgba(255, 255, 255, 0.9);
@@ -318,51 +298,6 @@
         margin-bottom: 1.5rem;
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
         text-align: center;
-    }
-
-    /* Mode toggle */
-    .mode-toggle {
-        display: flex;
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
-    .mode-btn {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0.5rem;
-        background: rgba(255, 255, 255, 0.15);
-        border: 3px solid rgba(255, 255, 255, 0.3);
-        border-radius: 20px;
-        padding: 1rem 2rem;
-        cursor: pointer;
-        transition: all 0.25s;
-        backdrop-filter: blur(4px);
-    }
-    .mode-btn.active {
-        background: rgba(255, 255, 255, 0.9);
-        border-color: white;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
-    }
-    .mode-btn:not(.active):hover {
-        background: rgba(255, 255, 255, 0.25);
-        border-color: rgba(255, 255, 255, 0.5);
-        transform: translateY(-3px);
-    }
-    .mode-icon {
-        width: 50px;
-        height: 60px;
-    }
-    .mode-icon.dual-icon {
-        width: 80px;
-    }
-    .mode-label {
-        font-size: 1rem;
-        font-weight: bold;
-        color: rgba(255, 255, 255, 0.9);
-    }
-    .mode-btn.active .mode-label {
-        color: #667eea;
     }
 
     .grid {
@@ -482,19 +417,6 @@
         .description {
             font-size: 1rem;
         }
-        .mode-toggle {
-            gap: 1rem;
-        }
-        .mode-btn {
-            padding: 0.75rem 1.25rem;
-        }
-        .mode-icon {
-            width: 40px;
-            height: 50px;
-        }
-        .mode-icon.dual-icon {
-            width: 65px;
-        }
     }
 
     @media (max-width: 480px) {
@@ -520,20 +442,6 @@
         }
         .description {
             font-size: 0.9rem;
-        }
-        .mode-btn {
-            padding: 0.6rem 1rem;
-            border-radius: 14px;
-        }
-        .mode-icon {
-            width: 32px;
-            height: 42px;
-        }
-        .mode-icon.dual-icon {
-            width: 55px;
-        }
-        .mode-label {
-            font-size: 0.85rem;
         }
     }
 </style>

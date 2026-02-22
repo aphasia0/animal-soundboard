@@ -1,5 +1,7 @@
 <script>
-    import { createEventDispatcher } from "svelte";
+    import { createEventDispatcher, onMount } from "svelte";
+    import { getSupabase } from "./supabaseClient.js";
+    import { user } from "./authStore.js";
     import { animals } from "./animals.js";
     import { jobs } from "./jobs.js";
     import { music } from "./music.js";
@@ -57,8 +59,48 @@
         },
     ];
 
+    let extendedCategories = [...categories];
+
     // Current category is expanded by default, others collapsed
     let expandedId = currentCategory;
+
+    onMount(async () => {
+        let currentUser;
+        const unsubscribe = user.subscribe((v) => (currentUser = v));
+
+        if (currentUser) {
+            const supabase = getSupabase();
+            if (supabase) {
+                const { data, error } = await supabase
+                    .from("user_categories")
+                    .select("*, user_cards(*)")
+                    .eq("user_id", currentUser.id)
+                    .order("created_at", { ascending: true });
+
+                if (!error && data) {
+                    const customCats = data.map((cat) => ({
+                        id: cat.id,
+                        label: cat.name,
+                        emoji: cat.emoji || "✨",
+                        items: (cat.user_cards || []).map((card) => ({
+                            id: card.id,
+                            image: card.image_url,
+                            sound: card.sound_url,
+                            name: card.name,
+                        })),
+                        getName: (item) => item.name,
+                    }));
+                    extendedCategories = [...categories, ...customCats];
+
+                    // If current category is a custom one, make sure it's expanded
+                    if (customCats.find((c) => c.id === currentCategory)) {
+                        expandedId = currentCategory;
+                    }
+                }
+            }
+        }
+        unsubscribe();
+    });
 
     function toggleCategory(id) {
         expandedId = expandedId === id ? null : id;
@@ -82,7 +124,7 @@
         </div>
 
         <div class="categories-list">
-            {#each categories as cat}
+            {#each extendedCategories as cat}
                 <div
                     class="category-section"
                     class:current={cat.id === currentCategory}

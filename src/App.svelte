@@ -1,5 +1,6 @@
 <script>
   import { onMount } from "svelte";
+  import ModeSelect from "./ModeSelect.svelte";
   import Home from "./Home.svelte";
   import Animals from "./Animals.svelte";
   import Work from "./Work.svelte";
@@ -12,7 +13,7 @@
   import AddCardModal from "./AddCardModal.svelte";
   import { initAuth, user } from "./authStore.js";
 
-  let currentView = "home";
+  let currentView = "modeSelect";
   let selectedCategory = null;
   let selectedCardMode = 1;
   let selectedUserCategory = null;
@@ -30,26 +31,32 @@
     initAuth();
   });
 
+  function handleModeSelect(event) {
+    selectedCardMode = event.detail;
+    currentView = "home";
+  }
+
   function handleCategorySelect(event) {
-    const { categoryId, cardMode } = event.detail;
+    const { categoryId } = event.detail;
     selectedCategory = categoryId;
-    selectedCardMode = cardMode;
     currentView = categoryId;
   }
 
   function handleUserCategorySelect(event) {
-    const { category, cardMode } = event.detail;
+    const { category } = event.detail;
     selectedUserCategory = category;
     selectedCategory = "userCategory";
-    selectedCardMode = cardMode;
     currentView = "userCategory";
   }
 
   function handleBack() {
     currentView = "home";
     selectedCategory = null;
-    selectedCardMode = 1;
     selectedUserCategory = null;
+  }
+
+  function handleBackToMode() {
+    currentView = "modeSelect";
   }
 
   function handleJumpTo(e) {
@@ -61,10 +68,15 @@
       people: "people",
       sentences: "sentences",
     };
-    const targetView = viewMap[category];
-    if (targetView) {
-      selectedCategory = targetView;
-      currentView = targetView;
+    if (viewMap[category]) {
+      selectedCategory = viewMap[category];
+      currentView = viewMap[category];
+      selectedUserCategory = null;
+    } else {
+      // Must be a custom category UUID
+      selectedUserCategory = { id: category };
+      selectedCategory = "userCategory";
+      currentView = "userCategory";
     }
   }
 
@@ -101,12 +113,15 @@
   }
 </script>
 
-{#if currentView === "home"}
+{#if currentView === "modeSelect"}
+  <ModeSelect on:select={handleModeSelect} />
+{:else if currentView === "home"}
   <Home
     on:select={handleCategorySelect}
     on:selectUserCategory={handleUserCategorySelect}
     on:showAuth={handleShowAuth}
     on:addCategory={handleAddCategory}
+    on:back={handleBackToMode}
   />
 {:else if currentView === "animals"}
   <Animals
