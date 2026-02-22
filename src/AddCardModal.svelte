@@ -21,6 +21,7 @@
     let recordingTime = 0;
     let recordingInterval = null;
     let audioExtension = "webm"; // default, will update dynamically
+    let audioChunks = [];
 
     let currentUser;
     user.subscribe((v) => (currentUser = v));
@@ -97,6 +98,23 @@
     async function startRecording() {
         error = "";
         try {
+            if (
+                !navigator.mediaDevices ||
+                !navigator.mediaDevices.getUserMedia
+            ) {
+                const isNotLocal =
+                    window.location.hostname !== "localhost" &&
+                    window.location.hostname !== "127.0.0.1";
+                if (window.location.protocol !== "https:" && isNotLocal) {
+                    error =
+                        "L'accesso al microfono richiede HTTPS su dispositivi remoti.";
+                } else {
+                    error =
+                        "Il tuo browser non supporta la registrazione audio o sei in un contesto non sicuro.";
+                }
+                return;
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: true,
             });
@@ -120,12 +138,24 @@
             const options = selectedMimeType
                 ? { mimeType: selectedMimeType }
                 : {};
-            mediaRecorder = new MediaRecorder(stream, options);
+
+            // On some versions of iOS, MediaRecorder needs specific handling
+            try {
+                mediaRecorder = new MediaRecorder(stream, options);
+            } catch (e) {
+                console.error(
+                    "MediaRecorder init failed with options, trying without",
+                    e,
+                );
+                mediaRecorder = new MediaRecorder(stream);
+            }
 
             // Set extension based on chosen mimetype
-            if (selectedMimeType.includes("mp4")) audioExtension = "m4a";
-            else if (selectedMimeType.includes("mpeg")) audioExtension = "mp3";
-            else if (selectedMimeType.includes("ogg")) audioExtension = "ogg";
+            const actualMimeType =
+                mediaRecorder.mimeType || selectedMimeType || "";
+            if (actualMimeType.includes("mp4")) audioExtension = "m4a";
+            else if (actualMimeType.includes("mpeg")) audioExtension = "mp3";
+            else if (actualMimeType.includes("ogg")) audioExtension = "ogg";
             else audioExtension = "webm";
 
             audioChunks = [];
@@ -135,9 +165,9 @@
             };
 
             mediaRecorder.onstop = () => {
-                // Use the selected MIME type OR fallback to the recorder's actual MIME type
+                // Use the recorder's actual MIME type
                 const finalMimeType =
-                    selectedMimeType || mediaRecorder.mimeType || "audio/webm";
+                    mediaRecorder.mimeType || selectedMimeType || "audio/webm";
                 recordedBlob = new Blob(audioChunks, { type: finalMimeType });
                 recordedUrl = URL.createObjectURL(recordedBlob);
                 stream.getTracks().forEach((t) => t.stop());
@@ -151,7 +181,20 @@
                 recordingTime += 1;
             }, 1000);
         } catch (err) {
-            error = "Permesso microfono negato";
+            console.error("Microphone access error:", err);
+            if (
+                err.name === "NotAllowedError" ||
+                err.name === "PermissionDeniedError"
+            ) {
+                error = "Permesso microfono negato dal browser.";
+            } else if (
+                err.name === "NotFoundError" ||
+                err.name === "DevicesNotFoundError"
+            ) {
+                error = "Nessun microfono trovato.";
+            } else {
+                error = "Errore accesso microfono: " + err.message;
+            }
         }
     }
 
