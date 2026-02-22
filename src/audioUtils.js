@@ -6,10 +6,12 @@ let audioContext = null;
 // Cache: sound path -> decoded AudioBuffer
 const bufferCache = new Map();
 
-// Single-channel legacy source
+// Single-channel state
 let currentSource = null;
+let currentSourceStartCtxTime = 0;
+let currentBuffer = null;
 
-// Multi-channel sources: channelId -> AudioBufferSourceNode
+// Multi-channel sources: channelId -> { source, startCtxTime, buffer }
 const channelSources = new Map();
 
 /**
@@ -77,18 +79,16 @@ async function getBuffer(src) {
 }
 
 /**
- * Plays an audio file with looping enabled (single-channel, legacy).
- * Uses pre-decoded AudioBuffers for instant start on iOS.
+ * Plays an audio file with looping enabled (single-channel).
+ * Optionally starts playback from a given offset (in seconds).
  *
  * @param {string} src - Path to the audio file
+ * @param {number} [offset=0] - Playback start offset in seconds
  */
-export async function playAudio(src) {
-    // Stop any currently playing sound
+export async function playAudio(src, offset = 0) {
     stopAudio();
 
     const ctx = getAudioContext();
-
-    // Ensure the context is running (iOS may suspend it)
     if (ctx.state === 'suspended') {
         await ctx.resume();
     }
@@ -96,42 +96,53 @@ export async function playAudio(src) {
     const buffer = await getBuffer(src);
     if (!buffer) return;
 
+    // Clamp offset within buffer duration
+    const safeOffset = offset % buffer.duration;
+
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.loop = true;
     source.connect(ctx.destination);
-    source.start(0);
+    source.start(0, safeOffset);
+
     currentSource = source;
+    currentSourceStartCtxTime = ctx.currentTime - safeOffset;
+    currentBuffer = buffer;
 }
 
 /**
- * Stops the currently playing audio (single-channel, legacy).
+ * Stops the currently playing audio (single-channel).
+ * Returns the current playback offset in seconds so it can be resumed later.
+ *
+ * @returns {number} offset in seconds
  */
 export function stopAudio() {
-    if (currentSource) {
-        try {
-            currentSource.stop();
-        } catch (e) {
-            // Ignore if already stopped
-        }
+    let offset = 0;
+    if (currentSource && currentBuffer) {
+        const ctx = getAudioContext();
+        const elapsed = ctx.currentTime - currentSourceStartCtxTime;
+        offset = elapsed % currentBuffer.duration;
+        try { currentSource.stop(); } catch (e) { /* already stopped */ }
         currentSource.disconnect();
-        currentSource = null;
     }
+    currentSource = null;
+    currentBuffer = null;
+    currentSourceStartCtxTime = 0;
+    return offset;
 }
 
 /**
- * Plays an audio file on a named channel. Each channel is independent,
- * so multiple channels can play simultaneously.
+ * Plays an audio file on a named channel. Each channel is independent.
+ * Optionally starts from a given offset in seconds.
  *
  * @param {string} src - Path to the audio file
- * @param {string} channelId - Unique channel identifier (e.g. "left", "right")
+ * @param {string} channelId - Unique channel identifier
+ * @param {number} [offset=0] - Playback start offset in seconds
  */
-export async function playAudioChannel(src, channelId) {
-    // Stop any existing sound on this channel
+export async function playAudioChannel(src, channelId, offset = 0) {
     stopAudioChannel(channelId);
 
     const ctx = getAudioContext();
-
     if (ctx.state === 'suspended') {
         await ctx.resume();
     }
@@ -139,30 +150,40 @@ export async function playAudioChannel(src, channelId) {
     const buffer = await getBuffer(src);
     if (!buffer) return;
 
+    const safeOffset = offset % buffer.duration;
+
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.loop = true;
     source.connect(ctx.destination);
-    source.start(0);
-    channelSources.set(channelId, source);
+    source.start(0, safeOffset);
+
+    channelSources.set(channelId, {
+        source,
+        startCtxTime: ctx.currentTime - safeOffset,
+        buffer
+    });
 }
 
 /**
  * Stops audio on a specific named channel.
+ * Returns the current playback offset in seconds.
  *
  * @param {string} channelId - The channel to stop
+ * @returns {number} offset in seconds
  */
 export function stopAudioChannel(channelId) {
-    const source = channelSources.get(channelId);
-    if (source) {
-        try {
-            source.stop();
-        } catch (e) {
-            // Ignore if already stopped
-        }
-        source.disconnect();
+    const entry = channelSources.get(channelId);
+    let offset = 0;
+    if (entry) {
+        const ctx = getAudioContext();
+        const elapsed = ctx.currentTime - entry.startCtxTime;
+        offset = elapsed % entry.buffer.duration;
+        try { entry.source.stop(); } catch (e) { /* already stopped */ }
+        entry.source.disconnect();
         channelSources.delete(channelId);
     }
+    return offset;
 }
 
 /**

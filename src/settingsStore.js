@@ -4,22 +4,22 @@ import { getSupabase } from './supabaseClient.js';
 const STORAGE_KEY = 'user_settings';
 
 const defaultSettings = {
-    cardMode: null, // null means not set yet
+    cardMode: null,
     shuffleMode: true,
-    primaryColor: '#39ff14',   // Shocking Green
-    secondaryColor: '#ff0000', // Shocking Red
+    primaryColor: '#39ff14',
+    secondaryColor: '#ff0000',
+    maxTimeMs: 5000,           // null = infinite
+    restartOnPress: true,      // true = restart from beginning each press; false = resume
     hasSettings: false
 };
 
 function createSettingsStore() {
     let initialValue = defaultSettings;
 
-    // Try to load from local storage
     if (typeof window !== 'undefined') {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
             try {
-                // Merge with defaults so new fields are populated even in old saves
                 initialValue = { ...defaultSettings, ...JSON.parse(saved), hasSettings: true };
             } catch (e) {
                 console.error("Error parsing local settings:", e);
@@ -48,6 +48,8 @@ function createSettingsStore() {
                         shuffleMode: data.shuffle_mode,
                         primaryColor: data.primary_color || defaultSettings.primaryColor,
                         secondaryColor: data.secondary_color || defaultSettings.secondaryColor,
+                        maxTimeMs: data.max_time_ms !== undefined ? data.max_time_ms : defaultSettings.maxTimeMs,
+                        restartOnPress: data.restart_on_press !== undefined ? data.restart_on_press : defaultSettings.restartOnPress,
                         hasSettings: true
                     };
                     set(settings);
@@ -78,6 +80,8 @@ function createSettingsStore() {
                         shuffle_mode: updated.shuffleMode,
                         primary_color: updated.primaryColor,
                         secondary_color: updated.secondaryColor,
+                        max_time_ms: updated.maxTimeMs,
+                        restart_on_press: updated.restartOnPress,
                         updated_at: new Date().toISOString()
                     });
                 } catch (e) {

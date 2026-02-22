@@ -24,7 +24,8 @@
     export let loading = false;
 
     const dispatch = createEventDispatcher();
-    const MAX_TIME = 5000;
+    // maxTime in ms; null = infinite (no auto-advance)
+    let maxTime = 5000;
     let isTouchDevice = false;
     let isLandscape = false;
 
@@ -105,11 +106,19 @@
 
     let showSelector = false;
     let showColorPicker = false;
+    let showTimePicker = false;
+    let customTimeInput = "";
 
     // Color state — read from store, fallback to defaults
     let primaryColor = "#39ff14";
     let secondaryColor = "#ff0000";
     let currentUser = null;
+
+    // Audio offset tracking for resume mode (in seconds) — declared BEFORE subscribe
+    let audioOffset = 0;
+    let audioOffsetA = 0;
+    let audioOffsetB = 0;
+    let restartOnPress = true;
 
     user.subscribe((u) => {
         currentUser = u;
@@ -117,7 +126,50 @@
     settingsStore.subscribe((s) => {
         primaryColor = s.primaryColor || "#39ff14";
         secondaryColor = s.secondaryColor || "#ff0000";
+        maxTime = s.maxTimeMs !== undefined ? s.maxTimeMs : 5000;
+        restartOnPress =
+            s.restartOnPress !== undefined ? s.restartOnPress : true;
     });
+
+    async function toggleRestartMode() {
+        const newVal = !restartOnPress;
+        // When switching back to restart mode, clear all saved offsets
+        if (newVal) {
+            audioOffset = 0;
+            audioOffsetA = 0;
+            audioOffsetB = 0;
+        }
+        await settingsStore.updateSettings(
+            { restartOnPress: newVal },
+            currentUser?.id,
+        );
+    }
+
+    const TIME_PRESETS = [
+        { label: "3s", value: 3000 },
+        { label: "5s", value: 5000 },
+        { label: "10s", value: 10000 },
+        { label: "30s", value: 30000 },
+        { label: "\u221e", value: null }, // infinite
+    ];
+
+    async function saveTime(ms) {
+        await settingsStore.updateSettings({ maxTimeMs: ms }, currentUser?.id);
+        showTimePicker = false;
+        customTimeInput = "";
+    }
+
+    async function saveCustomTime() {
+        const secs = parseFloat(customTimeInput);
+        if (!secs || secs <= 0) return;
+        await saveTime(Math.round(secs * 1000));
+    }
+
+    function timeLabel(ms) {
+        if (ms === null) return "\u221e";
+        if (ms < 1000) return ms + "ms";
+        return ms / 1000 + "s";
+    }
 
     async function saveColors() {
         await settingsStore.updateSettings(
@@ -175,23 +227,30 @@
         isPressed = true;
         pressStartTime = Date.now();
         resumeAudioContext();
-        playAudio(items[currentIndex].sound);
+        const offset = restartOnPress ? 0 : audioOffset;
+        playAudio(items[currentIndex].sound, offset);
         updateProgress();
     }
     function handlePressEnd() {
         if (!isPressed) return;
         isPressed = false;
         accumulatedTime += Date.now() - pressStartTime;
-        stopAudio();
+        const offset = stopAudio();
+        if (!restartOnPress) audioOffset = offset;
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        if (accumulatedTime >= MAX_TIME) next();
-        else progress = (accumulatedTime / MAX_TIME) * 100;
+        if (maxTime !== null && accumulatedTime >= maxTime) next();
+        else if (maxTime !== null) progress = (accumulatedTime / maxTime) * 100;
     }
     function updateProgress() {
         if (!isPressed) return;
         const t = accumulatedTime + (Date.now() - pressStartTime);
-        progress = Math.min((t / MAX_TIME) * 100, 100);
-        if (t >= MAX_TIME) {
+        if (maxTime === null) {
+            // Infinite mode: no auto-advance, just keep animating (CSS handles it)
+            animationFrameId = requestAnimationFrame(updateProgress);
+            return;
+        }
+        progress = Math.min((t / maxTime) * 100, 100);
+        if (t >= maxTime) {
             handlePressEnd();
         } else {
             animationFrameId = requestAnimationFrame(updateProgress);
@@ -200,6 +259,7 @@
     function next() {
         progress = 0;
         accumulatedTime = 0;
+        audioOffset = 0; // reset audio position on card advance
         if (shuffleMode) {
             currentIndex = getRandomIndex(currentIndex);
         } else {
@@ -213,23 +273,30 @@
         isPressedA = true;
         pressStartTimeA = Date.now();
         resumeAudioContext();
-        playAudioChannel(items[indexA].sound, "cardA");
+        const offset = restartOnPress ? 0 : audioOffsetA;
+        playAudioChannel(items[indexA].sound, "cardA", offset);
         updateProgressA();
     }
     function handlePressEndA() {
         if (!isPressedA) return;
         isPressedA = false;
         accumulatedTimeA += Date.now() - pressStartTimeA;
-        stopAudioChannel("cardA");
+        const offset = stopAudioChannel("cardA");
+        if (!restartOnPress) audioOffsetA = offset;
         if (animationFrameIdA) cancelAnimationFrame(animationFrameIdA);
-        if (accumulatedTimeA >= MAX_TIME) nextA();
-        else progressA = (accumulatedTimeA / MAX_TIME) * 100;
+        if (maxTime !== null && accumulatedTimeA >= maxTime) nextA();
+        else if (maxTime !== null)
+            progressA = (accumulatedTimeA / maxTime) * 100;
     }
     function updateProgressA() {
         if (!isPressedA) return;
         const t = accumulatedTimeA + (Date.now() - pressStartTimeA);
-        progressA = Math.min((t / MAX_TIME) * 100, 100);
-        if (t >= MAX_TIME) {
+        if (maxTime === null) {
+            animationFrameIdA = requestAnimationFrame(updateProgressA);
+            return;
+        }
+        progressA = Math.min((t / maxTime) * 100, 100);
+        if (t >= maxTime) {
             handlePressEndA();
         } else {
             animationFrameIdA = requestAnimationFrame(updateProgressA);
@@ -238,6 +305,7 @@
     function nextA() {
         progressA = 0;
         accumulatedTimeA = 0;
+        audioOffsetA = 0;
         if (shuffleMode) {
             indexA = getRandomIndex(indexA);
         } else {
@@ -250,23 +318,30 @@
         isPressedB = true;
         pressStartTimeB = Date.now();
         resumeAudioContext();
-        playAudioChannel(items[indexB].sound, "cardB");
+        const offset = restartOnPress ? 0 : audioOffsetB;
+        playAudioChannel(items[indexB].sound, "cardB", offset);
         updateProgressB();
     }
     function handlePressEndB() {
         if (!isPressedB) return;
         isPressedB = false;
         accumulatedTimeB += Date.now() - pressStartTimeB;
-        stopAudioChannel("cardB");
+        const offset = stopAudioChannel("cardB");
+        if (!restartOnPress) audioOffsetB = offset;
         if (animationFrameIdB) cancelAnimationFrame(animationFrameIdB);
-        if (accumulatedTimeB >= MAX_TIME) nextB();
-        else progressB = (accumulatedTimeB / MAX_TIME) * 100;
+        if (maxTime !== null && accumulatedTimeB >= maxTime) nextB();
+        else if (maxTime !== null)
+            progressB = (accumulatedTimeB / maxTime) * 100;
     }
     function updateProgressB() {
         if (!isPressedB) return;
         const t = accumulatedTimeB + (Date.now() - pressStartTimeB);
-        progressB = Math.min((t / MAX_TIME) * 100, 100);
-        if (t >= MAX_TIME) {
+        if (maxTime === null) {
+            animationFrameIdB = requestAnimationFrame(updateProgressB);
+            return;
+        }
+        progressB = Math.min((t / maxTime) * 100, 100);
+        if (t >= maxTime) {
             handlePressEndB();
         } else {
             animationFrameIdB = requestAnimationFrame(updateProgressB);
@@ -275,6 +350,7 @@
     function nextB() {
         progressB = 0;
         accumulatedTimeB = 0;
+        audioOffsetB = 0;
         if (shuffleMode) {
             indexB = getRandomIndex(indexB);
         } else {
@@ -396,6 +472,70 @@
                     />
                 </svg>
             </button>
+
+            <!-- Clock / Time Picker button -->
+            <button
+                class="palette-btn"
+                class:time-active={maxTime === null}
+                on:click={() => (showTimePicker = !showTimePicker)}
+                title="Durata ({timeLabel(maxTime)})"
+            >
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    width="26"
+                    height="26"
+                >
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                </svg>
+            </button>
+
+            <!-- Restart / Resume toggle button -->
+            <button
+                class="palette-btn"
+                class:restart-active={restartOnPress}
+                on:click={toggleRestartMode}
+                title={restartOnPress
+                    ? "Ricomincia da capo (clicca per passare a Riprendi)"
+                    : "Riprendi da dove era (clicca per tornare a Ricomincia)"}
+            >
+                {#if restartOnPress}
+                    <!-- Skip-back icon: restart mode -->
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        width="26"
+                        height="26"
+                    >
+                        <polyline points="1 4 1 10 7 10" />
+                        <path d="M3.51 15a9 9 0 1 0 .49-4.5" />
+                    </svg>
+                {:else}
+                    <!-- Pause-resume icon: resume mode -->
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        width="26"
+                        height="26"
+                    >
+                        <rect x="6" y="4" width="4" height="16" />
+                        <rect x="14" y="4" width="4" height="16" />
+                    </svg>
+                {/if}
+            </button>
         </div>
 
         {#if showColorPicker}
@@ -438,6 +578,47 @@
                         >Salva</button
                     >
                 </div>
+            </div>
+        {/if}
+
+        {#if showTimePicker}
+            <div class="color-picker-popup">
+                <div class="color-picker-title">⏱ Durata Gioco</div>
+                <div class="time-presets">
+                    {#each TIME_PRESETS as preset}
+                        <button
+                            class="time-preset-btn"
+                            class:active={maxTime === preset.value}
+                            on:click={() => saveTime(preset.value)}
+                        >
+                            {preset.label}
+                        </button>
+                    {/each}
+                </div>
+                <div class="color-row" style="margin-top:0.5rem">
+                    <label for="custom-time" style="white-space:nowrap"
+                        >Personalizzato (s)</label
+                    >
+                    <input
+                        id="custom-time"
+                        type="number"
+                        min="1"
+                        max="300"
+                        placeholder="es. 15"
+                        bind:value={customTimeInput}
+                        class="custom-time-input"
+                    />
+                    <button
+                        class="color-save"
+                        style="width:auto;padding:0.4rem 0.8rem"
+                        on:click={saveCustomTime}>OK</button
+                    >
+                </div>
+                <button
+                    class="color-cancel"
+                    style="width:100%;margin-top:0.5rem"
+                    on:click={() => (showTimePicker = false)}>Annulla</button
+                >
             </div>
         {/if}
 
@@ -490,7 +671,10 @@
                 {/if}
             </div>
         {:else if cardMode === 1}
-            <div class="progress-container primary">
+            <div
+                class="progress-container primary"
+                class:infinite={maxTime === null}
+            >
                 <div class="progress-bar" style="width: {progress}%"></div>
             </div>
             <button
@@ -519,7 +703,10 @@
         {:else}
             <div class="dual-container" class:landscape={isLandscape}>
                 <div class="card-wrapper">
-                    <div class="progress-container dual-progress primary">
+                    <div
+                        class="progress-container dual-progress primary"
+                        class:infinite={maxTime === null}
+                    >
                         <div
                             class="progress-bar"
                             style="width: {progressA}%"
@@ -552,7 +739,10 @@
                     </button>
                 </div>
                 <div class="card-wrapper">
-                    <div class="progress-container dual-progress secondary">
+                    <div
+                        class="progress-container dual-progress secondary"
+                        class:infinite={maxTime === null}
+                    >
                         <div
                             class="progress-bar"
                             style="width: {progressB}%"
@@ -800,6 +990,80 @@
     }
     .color-save:hover {
         background: #5a6fd6;
+    }
+    /* Time Picker */
+    .time-presets {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .time-preset-btn {
+        flex: 1;
+        min-width: 50px;
+        padding: 0.5rem 0.4rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.18s;
+    }
+    .time-preset-btn:hover {
+        border-color: #667eea;
+        background: #eef2ff;
+    }
+    .time-preset-btn.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+    .custom-time-input {
+        width: 70px;
+        padding: 0.4rem 0.5rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        text-align: center;
+    }
+    /* Highlight clock button when infinite mode is on */
+    .palette-btn.time-active {
+        background: #667eea;
+        color: white;
+    }
+    /* Highlight restart button when restart mode is on (default/active state) */
+    .palette-btn.restart-active {
+        background: rgba(255, 255, 255, 0.9);
+        color: #667eea;
+    }
+    /* Resume mode (not restart): show as orange/amber to indicate different state */
+    .palette-btn:not(.restart-active):has(rect) {
+        background: #fb923c;
+        color: white;
+    }
+    /* Infinite mode: pulsing progress bar */
+    @keyframes infinitePulse {
+        0% {
+            background-position: 0% 50%;
+            opacity: 0.7;
+        }
+        50% {
+            background-position: 100% 50%;
+            opacity: 1;
+        }
+        100% {
+            background-position: 0% 50%;
+            opacity: 0.7;
+        }
+    }
+    .progress-container.infinite .progress-bar {
+        width: 100% !important;
+        background: linear-gradient(270deg, #a855f7, #667eea, #38bdf8, #4ade80);
+        background-size: 300% 300%;
+        animation: infinitePulse 2s ease infinite;
+        box-shadow: none;
     }
     .back-button:hover,
     .select-btn:hover {
