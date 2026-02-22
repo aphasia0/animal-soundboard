@@ -448,67 +448,46 @@
         box-sizing: border-box;
         position: relative;
     }
-    .back-button {
+    .back-button,
+    .select-btn,
+    .shuffle-btn {
         position: absolute;
         top: 1rem;
-        left: 1rem;
         background: rgba(255, 255, 255, 0.9);
         border: none;
         border-radius: 15px;
-        padding: 1rem 2rem;
-        font-size: 1.2rem;
+        height: 3.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-weight: bold;
         color: #667eea;
         cursor: pointer;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         transition: all 0.2s;
         z-index: 10;
+        padding: 0 1.5rem;
+        font-size: 1.1rem;
     }
-    .back-button:hover {
-        background: white;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-    }
-    .back-button:active {
-        transform: translateY(0);
+    .back-button {
+        left: 1rem;
     }
     .select-btn {
-        position: absolute;
-        top: 1rem;
         right: 1rem;
-        background: rgba(255, 255, 255, 0.9);
-        border: none;
-        border-radius: 15px;
-        padding: 0.75rem 1.5rem;
-        font-size: 1rem;
-        font-weight: bold;
-        color: #667eea;
-        cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        transition: all 0.2s;
-        z-index: 10;
     }
+    .shuffle-btn {
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.4);
+        padding: 0 1rem;
+        opacity: 0.5;
+        font-size: 1.4rem;
+    }
+    .back-button:hover,
     .select-btn:hover {
         background: white;
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-    }
-    .shuffle-btn {
-        position: absolute;
-        top: 1rem;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(255, 255, 255, 0.4);
-        border: none;
-        border-radius: 15px;
-        padding: 0.75rem 1.2rem;
-        font-size: 1.4rem;
-        color: #667eea;
-        cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        transition: all 0.2s;
-        z-index: 10;
-        opacity: 0.5;
     }
     .shuffle-btn.active {
         background: rgba(255, 255, 255, 0.9);
@@ -610,12 +589,20 @@
         max-height: 70%;
     }
     @media (max-width: 768px) {
-        .back-button {
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
+        .back-button,
+        .select-btn,
+        .shuffle-btn {
+            padding: 0 1rem;
+            font-size: 0.9rem;
+            height: 2.8rem;
+            top: 0.75rem;
+        }
+        .shuffle-btn {
+            font-size: 1.2rem;
+            padding: 0 0.8rem;
         }
         .item-name {
-            font-size: 1.8rem;
+            font-size: 2rem;
             bottom: 1rem;
         }
         .soundboard {
