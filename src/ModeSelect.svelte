@@ -73,14 +73,15 @@
         width: 100vw;
         height: 100vh;
         display: flex;
-        align-items: center;
-        justify-content: center;
+        align-items: flex-start;
+        justify-content: flex-start;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        overflow-y: auto;
     }
 
     .mode-select {
         width: 100%;
-        height: 100%;
+        min-height: 100%;
         display: flex;
         flex-direction: column;
         align-items: center;
