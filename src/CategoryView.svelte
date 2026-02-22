@@ -3,6 +3,8 @@
     import { createEventDispatcher } from "svelte";
     import { getSupabase } from "./supabaseClient.js";
     import CardSelector from "./CardSelector.svelte";
+    import { settingsStore } from "./settingsStore.js";
+    import { user } from "./authStore.js";
     import {
         playAudio,
         stopAudio,
@@ -102,6 +104,38 @@
     }
 
     let showSelector = false;
+    let showColorPicker = false;
+
+    // Color state — read from store, fallback to defaults
+    let primaryColor = "#39ff14";
+    let secondaryColor = "#ff0000";
+    let currentUser = null;
+
+    user.subscribe((u) => {
+        currentUser = u;
+    });
+    settingsStore.subscribe((s) => {
+        primaryColor = s.primaryColor || "#39ff14";
+        secondaryColor = s.secondaryColor || "#ff0000";
+    });
+
+    async function saveColors() {
+        await settingsStore.updateSettings(
+            { primaryColor, secondaryColor },
+            currentUser?.id,
+        );
+        showColorPicker = false;
+    }
+
+    async function resetColors() {
+        primaryColor = "#39ff14";
+        secondaryColor = "#ff0000";
+        await settingsStore.updateSettings(
+            { primaryColor, secondaryColor },
+            currentUser?.id,
+        );
+        showColorPicker = false;
+    }
 
     function handleCardSelect(e) {
         const { category, item, index } = e.detail;
@@ -304,7 +338,9 @@
 
 <svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} />
 
-<main>
+<main
+    style="--primary-color:{primaryColor}; --secondary-color:{secondaryColor};"
+>
     <div class="soundboard">
         <button class="back-button" on:click={goBack}> ← Indietro </button>
         <button class="select-btn" on:click={() => (showSelector = true)}
@@ -333,6 +369,76 @@
                 <line x1="4" y1="4" x2="9" y2="9" />
             </svg>
         </button>
+
+        <!-- Palette / Color Picker button -->
+        <button
+            class="palette-btn"
+            on:click={() => (showColorPicker = !showColorPicker)}
+            title="Colori card"
+        >
+            <!-- Palette icon -->
+            <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                width="26"
+                height="26"
+            >
+                <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+                <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+                <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+                <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+                <path
+                    d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"
+                />
+            </svg>
+        </button>
+
+        {#if showColorPicker}
+            <div class="color-picker-popup">
+                <div class="color-picker-title">🎨 Colori Card</div>
+                <div class="color-row">
+                    <label for="color-primary">Principale</label>
+                    <input
+                        id="color-primary"
+                        type="color"
+                        bind:value={primaryColor}
+                    />
+                    <span
+                        class="color-preview"
+                        style="background:{primaryColor}"
+                    ></span>
+                </div>
+                <div class="color-row">
+                    <label for="color-secondary">Secondaria</label>
+                    <input
+                        id="color-secondary"
+                        type="color"
+                        bind:value={secondaryColor}
+                    />
+                    <span
+                        class="color-preview"
+                        style="background:{secondaryColor}"
+                    ></span>
+                </div>
+                <div class="color-actions">
+                    <button class="color-reset" on:click={resetColors}
+                        >Predefinito</button
+                    >
+                    <button
+                        class="color-cancel"
+                        on:click={() => (showColorPicker = false)}
+                        >Annulla</button
+                    >
+                    <button class="color-save" on:click={saveColors}
+                        >Salva</button
+                    >
+                </div>
+            </div>
+        {/if}
 
         {#if isUserCategory && items.length > 0 && cardMode === 1}
             <button
@@ -382,11 +488,11 @@
                 {/if}
             </div>
         {:else if cardMode === 1}
-            <div class="progress-container">
+            <div class="progress-container primary">
                 <div class="progress-bar" style="width: {progress}%"></div>
             </div>
             <button
-                class="item-button"
+                class="item-button primary"
                 class:pressed={isPressed}
                 on:mousedown={() => {
                     if (!isTouchDevice) handlePressStart();
@@ -404,20 +510,21 @@
                 <img
                     src={items[currentIndex].image}
                     alt={items[currentIndex].name}
+                    class:rounded={!items[currentIndex].image?.endsWith(".svg")}
                 />
                 <div class="item-name">{items[currentIndex].name}</div>
             </button>
         {:else}
             <div class="dual-container" class:landscape={isLandscape}>
                 <div class="card-wrapper">
-                    <div class="progress-container dual-progress">
+                    <div class="progress-container dual-progress primary">
                         <div
                             class="progress-bar"
                             style="width: {progressA}%"
                         ></div>
                     </div>
                     <button
-                        class="item-button"
+                        class="item-button primary"
                         class:pressed={isPressedA}
                         on:mousedown={() => {
                             if (!isTouchDevice) handlePressStartA();
@@ -435,19 +542,22 @@
                         <img
                             src={items[indexA].image}
                             alt={items[indexA].name}
+                            class:rounded={!items[indexA].image?.endsWith(
+                                ".svg",
+                            )}
                         />
                         <div class="item-name">{items[indexA].name}</div>
                     </button>
                 </div>
                 <div class="card-wrapper">
-                    <div class="progress-container dual-progress">
+                    <div class="progress-container dual-progress secondary">
                         <div
                             class="progress-bar"
                             style="width: {progressB}%"
                         ></div>
                     </div>
                     <button
-                        class="item-button"
+                        class="item-button secondary"
                         class:pressed={isPressedB}
                         on:mousedown={() => {
                             if (!isTouchDevice) handlePressStartB();
@@ -465,6 +575,9 @@
                         <img
                             src={items[indexB].image}
                             alt={items[indexB].name}
+                            class:rounded={!items[indexB].image?.endsWith(
+                                ".svg",
+                            )}
                         />
                         <div class="item-name">{items[indexB].name}</div>
                     </button>
@@ -558,6 +671,116 @@
         opacity: 0.5;
         font-size: 1.4rem;
     }
+    /* Palette button — positioned right of shuffle */
+    .palette-btn {
+        position: absolute;
+        top: 1rem;
+        left: calc(50% + 50px);
+        background: rgba(255, 255, 255, 0.9);
+        border: none;
+        border-radius: 15px;
+        height: 3.2rem;
+        width: 3.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #667eea;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s;
+        z-index: 10;
+        opacity: 1;
+    }
+    .palette-btn:hover {
+        background: white;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    }
+    /* Color picker popup */
+    .color-picker-popup {
+        position: absolute;
+        top: 5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        border-radius: 20px;
+        padding: 1.5rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        z-index: 100;
+        min-width: 260px;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .color-picker-title {
+        font-size: 1.1rem;
+        font-weight: bold;
+        color: #1a1a1a;
+        text-align: center;
+    }
+    .color-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .color-row label {
+        flex: 1;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #444;
+    }
+    .color-row input[type="color"] {
+        width: 44px;
+        height: 36px;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        padding: 2px;
+        background: none;
+    }
+    .color-preview {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 2px solid #e2e8f0;
+        flex-shrink: 0;
+    }
+    .color-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+    }
+    .color-cancel,
+    .color-save,
+    .color-reset {
+        flex: 1;
+        padding: 0.6rem;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .color-reset {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffc107;
+    }
+    .color-reset:hover {
+        background: #ffe08a;
+    }
+    .color-cancel {
+        background: #f1f5f9;
+        color: #475569;
+    }
+    .color-save {
+        background: #667eea;
+        color: white;
+    }
+    .color-save:hover {
+        background: #5a6fd6;
+    }
     .back-button:hover,
     .select-btn:hover {
         background: white;
@@ -618,10 +841,24 @@
     }
     .progress-bar {
         height: 100%;
-        background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+        background: linear-gradient(
+            90deg,
+            #4ade80 0%,
+            #22c55e 100%
+        ); /* default */
         transition: width 0.1s linear;
         border-radius: 20px;
         box-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+    }
+    /* Green loader for primary (single card / card A) */
+    .progress-container.primary .progress-bar {
+        background: var(--primary-color, #39ff14);
+        box-shadow: 0 0 20px rgba(57, 255, 20, 0.6);
+    }
+    /* Red loader for secondary (card B) */
+    .progress-container.secondary .progress-bar {
+        background: var(--secondary-color, #ff0000);
+        box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
     }
     .item-button {
         flex: 1;
@@ -647,16 +884,33 @@
         outline: none;
         -webkit-tap-highlight-color: transparent;
     }
+    /* Shocking Green border for single card and first dual card */
+    .item-button.primary {
+        border: 14px solid var(--primary-color, #39ff14);
+    }
+    /* Shocking Red border for second dual card */
+    .item-button.secondary {
+        border: 14px solid var(--secondary-color, #ff0000);
+    }
     .item-button:active,
     .item-button.pressed {
         transform: scale(0.93);
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
     }
+    /* Always perfectly circular images — works for SVG animals and uploaded user photos */
     .item-button img {
-        max-width: 90%;
-        max-height: 80%;
+        width: min(50vmin, 220px);
+        height: min(50vmin, 220px);
         object-fit: contain;
         pointer-events: none;
+        margin-bottom: 2rem;
+        flex-shrink: 0;
+    }
+    /* Only round custom (non-SVG) uploaded photos */
+    .item-button img.rounded {
+        border-radius: 50%;
+        object-fit: cover;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
     }
     .item-name {
         position: absolute;

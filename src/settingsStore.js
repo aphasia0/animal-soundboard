@@ -6,6 +6,8 @@ const STORAGE_KEY = 'user_settings';
 const defaultSettings = {
     cardMode: null, // null means not set yet
     shuffleMode: true,
+    primaryColor: '#39ff14',   // Shocking Green
+    secondaryColor: '#ff0000', // Shocking Red
     hasSettings: false
 };
 
@@ -17,7 +19,8 @@ function createSettingsStore() {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
             try {
-                initialValue = { ...JSON.parse(saved), hasSettings: true };
+                // Merge with defaults so new fields are populated even in old saves
+                initialValue = { ...defaultSettings, ...JSON.parse(saved), hasSettings: true };
             } catch (e) {
                 console.error("Error parsing local settings:", e);
             }
@@ -43,6 +46,8 @@ function createSettingsStore() {
                     const settings = {
                         cardMode: data.card_mode,
                         shuffleMode: data.shuffle_mode,
+                        primaryColor: data.primary_color || defaultSettings.primaryColor,
+                        secondaryColor: data.secondary_color || defaultSettings.secondaryColor,
                         hasSettings: true
                     };
                     set(settings);
@@ -71,6 +76,8 @@ function createSettingsStore() {
                         user_id: userId,
                         card_mode: updated.cardMode,
                         shuffle_mode: updated.shuffleMode,
+                        primary_color: updated.primaryColor,
+                        secondary_color: updated.secondaryColor,
                         updated_at: new Date().toISOString()
                     });
                 } catch (e) {

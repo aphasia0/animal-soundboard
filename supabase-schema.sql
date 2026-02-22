@@ -105,6 +105,8 @@ create table if not exists user_confs (
   user_id uuid primary key references auth.users(id) on delete cascade,
   card_mode int not null default 1,
   shuffle_mode boolean not null default true,
+  primary_color text not null default '#39ff14',
+  secondary_color text not null default '#ff0000',
   updated_at timestamptz default now()
 );
 
