@@ -1,17 +1,29 @@
 <script>
-    import { createEventDispatcher } from "svelte";
+    import { createEventDispatcher, onMount } from "svelte";
     import { getSupabase } from "./supabaseClient.js";
     import { user } from "./authStore.js";
 
     const dispatch = createEventDispatcher();
 
     export let categoryId;
+    export let editCard = null; // null = add mode, card object = edit mode
 
     let name = "";
     let imageFile = null;
     let imagePreview = null;
+    let existingImageUrl = null; // keep existing if no new file chosen
+    let existingSoundUrl = null; // keep existing if no new recording
     let loading = false;
     let error = "";
+
+    onMount(() => {
+        if (editCard) {
+            name = editCard.name || "";
+            existingImageUrl = editCard.image || null;
+            imagePreview = editCard.image || null;
+            existingSoundUrl = editCard.sound || null;
+        }
+    });
 
     // Mic recording state
     let isRecording = false;
@@ -217,11 +229,12 @@
             error = "Inserisci un nome";
             return;
         }
-        if (!imageFile) {
+        // In add mode, require image and recording
+        if (!editCard && !imageFile) {
             error = "Seleziona un'immagine";
             return;
         }
-        if (!recordedBlob) {
+        if (!editCard && !recordedBlob) {
             error = "Registra un suono";
             return;
         }
@@ -232,66 +245,81 @@
         const uid = currentUser.id;
         const ts = Date.now();
 
-        // Compress image before upload
-        let fileToUpload = imageFile;
-        let imgExt = imageFile.name.split(".").pop().toLowerCase();
+        let finalImageUrl = existingImageUrl;
+        let finalSoundUrl = existingSoundUrl;
 
-        try {
-            // Convert to a smaller JPEG
-            const compressedBlob = await compressImage(
-                imageFile,
-                800,
-                800,
-                0.8,
-            );
-            fileToUpload = compressedBlob;
-            imgExt = "jpg"; // Forcing extension since we convert to image/jpeg
-        } catch (err) {
-            console.error("Compression failed, uploading original", err);
+        // Upload new image if selected
+        if (imageFile) {
+            let fileToUpload = imageFile;
+            let imgExt = imageFile.name.split(".").pop().toLowerCase();
+            try {
+                const compressedBlob = await compressImage(imageFile, 800, 800, 0.8);
+                fileToUpload = compressedBlob;
+                imgExt = "jpg";
+            } catch (err) {
+                console.error("Compression failed, uploading original", err);
+            }
+            const imgPath = `${uid}/${ts}.${imgExt}`;
+            const { error: imgErr } = await supabase.storage
+                .from("card-images")
+                .upload(imgPath, fileToUpload);
+            if (imgErr) {
+                error = "Errore upload immagine: " + imgErr.message;
+                loading = false;
+                return;
+            }
+            const { data: imgUrlData } = supabase.storage
+                .from("card-images")
+                .getPublicUrl(imgPath);
+            finalImageUrl = imgUrlData.publicUrl;
         }
 
-        const imgPath = `${uid}/${ts}.${imgExt}`;
-        const { error: imgErr } = await supabase.storage
-            .from("card-images")
-            .upload(imgPath, fileToUpload);
-        if (imgErr) {
-            error = "Errore upload immagine: " + imgErr.message;
-            loading = false;
-            return;
+        // Upload new sound if recorded
+        if (recordedBlob) {
+            const soundPath = `${uid}/${ts}.${audioExtension}`;
+            const { error: sndErr } = await supabase.storage
+                .from("card-sounds")
+                .upload(soundPath, recordedBlob);
+            if (sndErr) {
+                error = "Errore upload suono: " + sndErr.message;
+                loading = false;
+                return;
+            }
+            const { data: sndUrlData } = supabase.storage
+                .from("card-sounds")
+                .getPublicUrl(soundPath);
+            finalSoundUrl = sndUrlData.publicUrl;
         }
 
-        const { data: imgUrlData } = supabase.storage
-            .from("card-images")
-            .getPublicUrl(imgPath);
-
-        // Upload sound
-        const soundPath = `${uid}/${ts}.${audioExtension}`;
-        const { error: sndErr } = await supabase.storage
-            .from("card-sounds")
-            .upload(soundPath, recordedBlob);
-        if (sndErr) {
-            error = "Errore upload suono: " + sndErr.message;
-            loading = false;
-            return;
-        }
-
-        const { data: sndUrlData } = supabase.storage
-            .from("card-sounds")
-            .getPublicUrl(soundPath);
-
-        // Insert card record
-        const { error: dbErr } = await supabase.from("user_cards").insert({
-            category_id: categoryId,
-            user_id: uid,
-            name: name.trim(),
-            image_url: imgUrlData.publicUrl,
-            sound_url: sndUrlData.publicUrl,
-        });
-
-        if (dbErr) {
-            error = "Errore salvataggio: " + dbErr.message;
-            loading = false;
-            return;
+        if (editCard) {
+            // UPDATE existing card
+            const { error: dbErr } = await supabase
+                .from("user_cards")
+                .update({
+                    name: name.trim(),
+                    image_url: finalImageUrl,
+                    sound_url: finalSoundUrl,
+                })
+                .eq("id", editCard.id);
+            if (dbErr) {
+                error = "Errore salvataggio: " + dbErr.message;
+                loading = false;
+                return;
+            }
+        } else {
+            // INSERT new card
+            const { error: dbErr } = await supabase.from("user_cards").insert({
+                category_id: categoryId,
+                user_id: uid,
+                name: name.trim(),
+                image_url: finalImageUrl,
+                sound_url: finalSoundUrl,
+            });
+            if (dbErr) {
+                error = "Errore salvataggio: " + dbErr.message;
+                loading = false;
+                return;
+            }
         }
 
         dispatch("saved");
@@ -307,7 +335,7 @@
 <div class="overlay" on:click|self={close}>
     <div class="modal">
         <button class="close-btn" on:click={close}>✕</button>
-        <h2>Nuova Card</h2>
+        <h2>{editCard ? 'Modifica Card' : 'Nuova Card'}</h2>
 
         <input
             type="text"
@@ -349,6 +377,11 @@
                 <audio src={recordedUrl} controls></audio>
                 <button class="remove-btn" on:click={removeRecording}>✕</button>
             </div>
+        {:else if existingSoundUrl && !recordedBlob}
+            <div class="audio-preview">
+                <audio src={existingSoundUrl} controls></audio>
+                <button class="remove-btn" on:click={() => { existingSoundUrl = null; }}>✕</button>
+            </div>
         {:else}
             <div class="recorder">
                 {#if isRecording}
@@ -380,7 +413,7 @@
             on:click={handleSave}
             disabled={loading || isRecording}
         >
-            {loading ? "Salvataggio..." : "Aggiungi Card"}
+            {loading ? "Salvataggio..." : editCard ? "Salva Modifiche" : "Aggiungi Card"}
         </button>
     </div>
 </div>

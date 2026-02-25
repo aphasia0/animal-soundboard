@@ -8,6 +8,7 @@
     import { music } from "./music.js";
     import { people } from "./people.js";
     import { sentences } from "./sentences.js";
+    import AddCategoryModal from "./AddCategoryModal.svelte";
 
     const dispatch = createEventDispatcher();
 
@@ -54,6 +55,36 @@
 
     let userCategories = [];
     let showUserMenu = false;
+
+    // Category edit/delete state
+    let showEditCatModal = false;
+    let catToEdit = null;
+    let showDeleteCatConfirm = false;
+    let catToDelete = null;
+
+    function openEditCategory(cat, e) {
+        e.stopPropagation();
+        catToEdit = cat;
+        showEditCatModal = true;
+    }
+
+    function openDeleteCategory(cat, e) {
+        e.stopPropagation();
+        catToDelete = cat;
+        showDeleteCatConfirm = true;
+    }
+
+    async function confirmDeleteCategory() {
+        if (!catToDelete) return;
+        const supabase = getSupabase();
+        await supabase
+            .from("user_categories")
+            .delete()
+            .eq("id", catToDelete.id);
+        showDeleteCatConfirm = false;
+        catToDelete = null;
+        await loadUserCategories();
+    }
 
     onMount(() => {
         loadUserCategories();
@@ -157,17 +188,71 @@
             {/each}
 
             {#each userCategories as ucat}
-                <button
+                <!-- svelte-ignore a11y-click-events-have-key-events -->
+                <div
                     class="card enabled user-card"
                     on:click={() => selectUserCategory(ucat)}
                 >
+                    <!-- Edit & Delete overlay icons -->
+                    <div class="cat-actions">
+                        <button
+                            class="cat-action-btn cat-edit-btn"
+                            title="Modifica"
+                            on:click={(e) => openEditCategory(ucat, e)}
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                width="16"
+                                height="16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path
+                                    d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                                />
+                                <path
+                                    d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                                />
+                            </svg>
+                        </button>
+                        <button
+                            class="cat-action-btn cat-delete-btn"
+                            title="Elimina"
+                            on:click={(e) => openDeleteCategory(ucat, e)}
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                width="16"
+                                height="16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <polyline points="3 6 5 6 21 6" />
+                                <path
+                                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                                />
+                                <line x1="10" y1="11" x2="10" y2="17" /><line
+                                    x1="14"
+                                    y1="11"
+                                    x2="14"
+                                    y2="17"
+                                />
+                            </svg>
+                        </button>
+                    </div>
                     <div class="emoji">{ucat.emoji}</div>
                     <div class="name">{ucat.name}</div>
                     <div class="description">
                         {ucat.cardCount}
                         {ucat.cardCount === 1 ? "card" : "card"}
                     </div>
-                </button>
+                </div>
             {/each}
 
             <button class="card add-card" on:click={handleAddCategory}>
@@ -178,6 +263,53 @@
         </div>
     </div>
 </main>
+
+<!-- Category delete confirmation -->
+{#if showDeleteCatConfirm && catToDelete}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <div
+        class="cat-overlay"
+        on:click|self={() => {
+            showDeleteCatConfirm = false;
+            catToDelete = null;
+        }}
+    >
+        <div class="cat-modal">
+            <h3>Elimina "{catToDelete.name}"?</h3>
+            <p style="color:#666;font-size:0.9rem">
+                Questa azione non può essere annullata.
+            </p>
+            <div class="cat-modal-actions">
+                <button
+                    class="cat-cancel-btn"
+                    on:click={() => {
+                        showDeleteCatConfirm = false;
+                        catToDelete = null;
+                    }}>Annulla</button
+                >
+                <button class="cat-confirm-btn" on:click={confirmDeleteCategory}
+                    >Sì, elimina</button
+                >
+            </div>
+        </div>
+    </div>
+{/if}
+
+<!-- Category edit modal -->
+{#if showEditCatModal && catToEdit}
+    <AddCategoryModal
+        editCategory={catToEdit}
+        on:saved={async () => {
+            showEditCatModal = false;
+            catToEdit = null;
+            await loadUserCategories();
+        }}
+        on:close={() => {
+            showEditCatModal = false;
+            catToEdit = null;
+        }}
+    />
+{/if}
 
 <style>
     :global(body) {
@@ -344,7 +476,100 @@
 
     .user-card {
         border: 3px solid rgba(102, 126, 234, 0.3);
+        cursor: pointer;
     }
+
+    /* Category action buttons — top-right of user-card */
+    .cat-actions {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        display: flex;
+        gap: 0.35rem;
+        z-index: 10;
+    }
+    .cat-action-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        opacity: 0.85;
+        transition:
+            opacity 0.15s,
+            transform 0.15s;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    }
+    .cat-action-btn:hover,
+    .cat-action-btn:active {
+        opacity: 1;
+        transform: scale(1.12);
+    }
+    .cat-edit-btn {
+        background: #f59e0b;
+        color: white;
+    }
+    .cat-delete-btn {
+        background: #ef4444;
+        color: white;
+    }
+
+    /* Category delete confirm modal */
+    .cat-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        backdrop-filter: blur(3px);
+    }
+    .cat-modal {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        width: 90%;
+        max-width: 360px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+        text-align: center;
+    }
+    .cat-modal h3 {
+        color: #1a1a1a;
+        margin: 0 0 0.5rem;
+        font-size: 1.2rem;
+    }
+    .cat-modal-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+    }
+    .cat-cancel-btn,
+    .cat-confirm-btn {
+        flex: 1;
+        padding: 0.7rem;
+        border: none;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .cat-cancel-btn {
+        background: #f1f5f9;
+        color: #475569;
+    }
+    .cat-confirm-btn {
+        background: #ef4444;
+        color: white;
+    }
+    .cat-confirm-btn:hover {
+        background: #dc2626;
+    }
+
     .add-card {
         background: rgba(255, 255, 255, 0.15) !important;
         border: 3px dashed rgba(255, 255, 255, 0.5) !important;

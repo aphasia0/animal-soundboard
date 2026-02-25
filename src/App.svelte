@@ -233,6 +233,12 @@
       currentView = "userCategory";
     }, 0);
   }
+  function handleCardEdited() {
+    // Re-fetch cards so the updated card data is shown
+    if (selectedUserCategory) {
+      fetchUserCards(selectedUserCategory.id);
+    }
+  }
 </script>
 
 {#if currentView === "modeSelect"}
@@ -311,6 +317,7 @@
     on:back={handleBack}
     on:addCard={handleAddCard}
     on:deleteCard={handleDeleteCard}
+    on:cardEdited={handleCardEdited}
     on:toggleShuffle={(e) =>
       settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}

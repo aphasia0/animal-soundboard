@@ -1,14 +1,23 @@
 <script>
-    import { createEventDispatcher } from "svelte";
+    import { createEventDispatcher, onMount } from "svelte";
     import { getSupabase } from "./supabaseClient.js";
     import { user } from "./authStore.js";
 
     const dispatch = createEventDispatcher();
 
+    export let editCategory = null; // null = create mode, object = edit mode
+
     let name = "";
     let selectedEmoji = "📁";
     let loading = false;
     let error = "";
+
+    onMount(() => {
+        if (editCategory) {
+            name = editCategory.name || "";
+            selectedEmoji = editCategory.emoji || "📁";
+        }
+    });
 
     const emojis = [
         "🏠",
@@ -57,18 +66,35 @@
         error = "";
 
         const supabase = getSupabase();
-        const { error: dbError } = await supabase
-            .from("user_categories")
-            .insert({
-                user_id: currentUser.id,
-                name: name.trim(),
-                emoji: selectedEmoji,
-            });
 
-        if (dbError) {
-            error = dbError.message;
-            loading = false;
-            return;
+        if (editCategory) {
+            const { error: dbError } = await supabase
+                .from("user_categories")
+                .update({
+                    name: name.trim(),
+                    emoji: selectedEmoji,
+                })
+                .eq("id", editCategory.id);
+
+            if (dbError) {
+                error = dbError.message;
+                loading = false;
+                return;
+            }
+        } else {
+            const { error: dbError } = await supabase
+                .from("user_categories")
+                .insert({
+                    user_id: currentUser.id,
+                    name: name.trim(),
+                    emoji: selectedEmoji,
+                });
+
+            if (dbError) {
+                error = dbError.message;
+                loading = false;
+                return;
+            }
         }
 
         dispatch("saved");
@@ -83,7 +109,7 @@
 <div class="overlay" on:click|self={close}>
     <div class="modal">
         <button class="close-btn" on:click={close}>✕</button>
-        <h2>Nuova Categoria</h2>
+        <h2>{editCategory ? "Modifica Categoria" : "Nuova Categoria"}</h2>
 
         <div class="preview">
             <span class="preview-emoji">{selectedEmoji}</span>
@@ -117,7 +143,11 @@
         {/if}
 
         <button class="save-btn" on:click={handleSave} disabled={loading}>
-            {loading ? "Salvataggio..." : "Crea Categoria"}
+            {loading
+                ? "Salvataggio..."
+                : editCategory
+                  ? "Salva Modifiche"
+                  : "Crea Categoria"}
         </button>
     </div>
 </div>
