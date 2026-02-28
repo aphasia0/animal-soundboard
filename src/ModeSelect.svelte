@@ -64,6 +64,14 @@
                 <div class="name">Due Card</div>
                 <div class="description">Due card affiancate</div>
             </button>
+
+            <button class="card enabled" on:click={() => selectMode("stories")}>
+                <div class="icon-container">
+                    <div class="emoji-icon">🐺</div>
+                </div>
+                <div class="name">Cantastorie</div>
+                <div class="description">Storie interattive</div>
+            </button>
         </div>
     </div>
 </main>
@@ -106,9 +114,9 @@
 
     .grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 2rem;
-        max-width: 800px;
+        max-width: 1000px;
         width: 100%;
     }
 
@@ -156,6 +164,11 @@
         width: 115px;
     }
 
+    .emoji-icon {
+        font-size: 5.5rem;
+        line-height: 1;
+    }
+
     .name {
         font-size: 2rem;
         font-weight: bold;
@@ -177,8 +190,9 @@
         }
 
         .grid {
-            gap: 1rem;
-            max-width: 600px;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            max-width: 400px;
         }
 
         .card {
@@ -194,6 +208,10 @@
 
         .mode-icon.dual-icon {
             width: 85px;
+        }
+
+        .emoji-icon {
+            font-size: 4rem;
         }
 
         .name {

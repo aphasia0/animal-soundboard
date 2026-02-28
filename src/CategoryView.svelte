@@ -263,6 +263,16 @@
     function handlePressStart() {
         if (items.length === 0) return;
 
+        // If item has no sound (e.g. story covers), treat press as navigation
+        if (!items[currentIndex].sound) {
+            dispatch("jumpTo", {
+                category: categoryId || categoryKey,
+                item: items[currentIndex],
+                index: currentIndex,
+            });
+            return;
+        }
+
         if (playbackMode === "autoplay") {
             // Toggle: click while playing → stop; click while stopped → start
             if (isPressed) {

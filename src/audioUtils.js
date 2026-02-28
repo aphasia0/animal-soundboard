@@ -45,6 +45,7 @@ export async function resumeAudioContext() {
 export async function preloadSounds(paths) {
     const ctx = getAudioContext();
     const promises = paths.map(async (path) => {
+        if (!path) return; // skip undefined/null paths
         if (bufferCache.has(path)) return; // already cached
         try {
             const response = await fetch(path);
@@ -86,6 +87,7 @@ async function getBuffer(src) {
  * @param {number} [offset=0] - Playback start offset in seconds
  */
 export async function playAudio(src, offset = 0) {
+    if (!src) return; // skip undefined/null paths
     stopAudio();
 
     const ctx = getAudioContext();
@@ -140,6 +142,7 @@ export function stopAudio() {
  * @param {number} [offset=0] - Playback start offset in seconds
  */
 export async function playAudioChannel(src, channelId, offset = 0) {
+    if (!src) return; // skip undefined/null paths
     stopAudioChannel(channelId);
 
     const ctx = getAudioContext();

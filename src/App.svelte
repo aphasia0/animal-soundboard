@@ -16,6 +16,9 @@
   import { music } from "./music.js";
   import { people } from "./people.js";
   import { sentences } from "./sentences.js";
+  import { stories } from "./stories.js";
+  import StoryView from "./StoryView.svelte";
+  import StorySelect from "./StorySelect.svelte";
   import {
     getAnimalName,
     getJobName,
@@ -153,9 +156,13 @@
 
   function handleModeSelect(event) {
     const mode = event.detail;
-    selectedCardMode = mode;
-    settingsStore.updateSettings({ cardMode: mode }, currentUser?.id);
-    currentView = "home";
+    if (mode === "stories") {
+      currentView = "stories";
+    } else {
+      selectedCardMode = mode;
+      settingsStore.updateSettings({ cardMode: mode }, currentUser?.id);
+      currentView = "home";
+    }
   }
 
   function handleCategorySelect(event) {
@@ -189,6 +196,7 @@
       music: "music",
       people: "people",
       sentences: "sentences",
+      stories: "stories",
     };
     if (viewMap[category]) {
       selectedCategory = viewMap[category];
@@ -305,6 +313,21 @@
     on:toggleShuffle={(e) =>
       settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
+  />
+{:else if currentView === "stories"}
+  <StorySelect
+    on:back={handleBack}
+    on:select={(e) => {
+      selectedCategory = e.detail.story;
+      currentView = "playingStory";
+    }}
+  />
+{:else if currentView === "playingStory"}
+  <StoryView
+    story={selectedCategory}
+    on:back={() => {
+      currentView = "stories";
+    }}
   />
 {:else if currentView === "userCategory"}
   <CategoryView
