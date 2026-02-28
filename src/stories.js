@@ -3,6 +3,7 @@ export const stories = [
         id: "cappuccetto-rosso",
         name: "Cappuccetto Rosso",
         image: "/assets/stories/cappuccetto_rosso_cover.jpg",
+        storyline: "Genera immagine per cappuccetto rosso.",
         chunks: [
             {
                 text: "C'era una volta una dolce bambina chiamata Cappuccetto Rosso. La sua nonna le voleva un mondo di bene e le aveva regalato una bellissima mantellina rossa con un cappuccio, che la bambina indossava sempre con grande gioia e orgoglio.",
@@ -65,6 +66,7 @@ export const stories = [
         id: "pinocchio",
         name: "Pinocchio",
         image: "/assets/stories/pinocchio_cover.jpg",
+        storyline: "Una fiaba italiana classica su un burattino di legno creato dal falegname Geppetto che sogna di diventare un bambino vero. Pinocchio affronta molte avventure e tentazioni, incontrando personaggi come il Grillo Parlante, il Gatto e la Volpe, la Fata Turchina e il Paese dei Balocchi. La storia parla di crescita, onestà e amore paterno. Tono: avventuroso, colorato e moralizzante.",
         chunks: [
             {
                 text: "C'era una volta un pezzo di legno speciale che piangeva e rideva proprio come un bambino vero. Il falegname Mastro Ciliegia lo regalò a Geppetto, un falegname molto povero che desiderava disperatamente costruirsi un burattino bellissimo in grado di ballare e cantare.",

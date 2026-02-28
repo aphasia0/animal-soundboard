@@ -42,7 +42,7 @@ async function generateAudio(text, outputPath) {
     }
 }
 
-async function generateImage(prompt, outputPath) {
+async function generateImage(prompt, outputPath, storylineContext = '') {
     if (fs.existsSync(outputPath)) {
         console.log(`Image already exists: ${outputPath}`);
         return;
@@ -55,12 +55,14 @@ async function generateImage(prompt, outputPath) {
 
     console.log(`Generating image for: ${prompt.substring(0, 30)}...`);
     try {
-        const stylePrefix = "A colorful, cute illustration for a children's storybook, in a vibrant, slightly silly and fun style. Do not add any test.";
+        const stylePrefix = "A colorful, cute illustration for a children's storybook, in a vibrant, slightly silly and fun style. Do not add any text.";
+        const storylinePrefix = storylineContext ? `Story context: ${storylineContext}. ` : '';
 
         const response = await ai.models.generateContent({
             model: "gemini-3.1-flash-image-preview",
-            contents: stylePrefix + prompt,
+            contents: stylePrefix + ' ' + storylinePrefix + prompt,
         });
+        let imageSaved = false;
         for (const part of response.candidates[0].content.parts) {
             if (part.text) {
                 console.log(part.text);
@@ -68,14 +70,15 @@ async function generateImage(prompt, outputPath) {
                 const imageData = part.inlineData.data;
                 const buffer = Buffer.from(imageData, "base64");
                 fs.writeFileSync(outputPath, buffer);
+                imageSaved = true;
             }
         }
 
-        const imageBase64 = response.generatedImages[0].image.imageBytes;
-        const buffer = Buffer.from(imageBase64, 'base64');
-
-        fs.writeFileSync(outputPath, buffer);
-        console.log(`Saved image to ${outputPath}`);
+        if (imageSaved) {
+            console.log(`Saved image to ${outputPath}`);
+        } else {
+            console.warn(`No image data returned for ${outputPath}`);
+        }
     } catch (e) {
         console.error(`Failed to generate image for ${outputPath}:`, e.message);
     }
@@ -94,7 +97,7 @@ async function main() {
 
         // Generate cover image
         const coverPath = path.join(__dirname, '..', 'public', story.image);
-        await generateImage(`Cover art for ${story.name}`, coverPath);
+        await generateImage(`Cover art for ${story.name}`, coverPath, story.storyline);
 
         let i = 1;
         for (const chunk of story.chunks) {
@@ -104,7 +107,7 @@ async function main() {
             await generateAudio(chunk.text, audioPath);
 
             const imagePath = path.join(__dirname, '..', 'public', chunk.image);
-            await generateImage(chunk.text, imagePath);
+            await generateImage(chunk.text, imagePath, story.storyline);
 
             i++;
         }

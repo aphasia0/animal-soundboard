@@ -96,11 +96,8 @@
 <main>
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div
-        class="story-container"
-        style="background-image: url('{currentChunk.image}')"
-        on:click={handleClick}
-    >
+    <div class="story-container" on:click={handleClick}>
+        <img class="story-bg" src={currentChunk.image} alt="" />
         <button class="back-button" on:click|stopPropagation={goBack}
             >← Indietro</button
         >
@@ -134,7 +131,7 @@
 <style>
     main {
         width: 100vw;
-        height: 100vh;
+        height: 100dvh;
         background: #000;
         overflow: hidden;
     }
@@ -142,16 +139,23 @@
     .story-container {
         width: 100%;
         height: 100%;
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
         position: relative;
         display: flex;
         flex-direction: column;
         justify-content: flex-end;
         align-items: center;
         cursor: pointer;
-        transition: background-image 0.5s ease-in-out;
+    }
+
+    .story-bg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center center;
+        z-index: 0;
+        transition: opacity 0.5s ease-in-out;
     }
 
     .back-button {
@@ -179,6 +183,7 @@
         backdrop-filter: blur(8px);
         box-sizing: border-box;
         margin: 0;
+        z-index: 1;
         transform: translateY(100%);
         opacity: 0;
         transition:
