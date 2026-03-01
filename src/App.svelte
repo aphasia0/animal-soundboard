@@ -376,3 +376,62 @@
     on:saved={handleCardSaved}
   />
 {/if}
+
+<style>
+  :global([data-tooltip]) {
+    position: relative;
+  }
+
+  :global([data-tooltip]::before) {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 125%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    padding: 0.6rem 0.9rem;
+    background: rgba(15, 23, 42, 0.95);
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 10px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+  }
+
+  :global([data-tooltip]::after) {
+    content: "";
+    position: absolute;
+    top: 115%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    border: 6px solid transparent;
+    border-bottom-color: rgba(15, 23, 42, 0.95);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    pointer-events: none;
+  }
+
+  :global([data-tooltip]:hover::before),
+  :global([data-tooltip]:hover::after) {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Responsive adjustment for tooltips on mobile */
+  @media (max-width: 768px) {
+    :global([data-tooltip]::before),
+    :global([data-tooltip]::after) {
+      display: none !important;
+    }
+  }
+</style>

@@ -42,7 +42,12 @@ function createSettingsStore() {
                     .eq('user_id', userId)
                     .maybeSingle();
 
-                if (data && !error) {
+                if (error) {
+                    console.error("Supabase settings fetch error:", error);
+                    return null;
+                }
+
+                if (data) {
                     const settings = {
                         cardMode: data.card_mode,
                         shuffleMode: data.shuffle_mode,
@@ -57,7 +62,7 @@ function createSettingsStore() {
                     return settings;
                 }
             } catch (e) {
-                console.error("Supabase settings fetch failed:", e);
+                console.error("Supabase settings load exception:", e);
             }
             return null;
         },
@@ -74,7 +79,7 @@ function createSettingsStore() {
             const supabase = getSupabase();
             if (supabase && userId) {
                 try {
-                    await supabase.from('user_confs').upsert({
+                    const { error } = await supabase.from('user_confs').upsert({
                         user_id: userId,
                         card_mode: updated.cardMode,
                         shuffle_mode: updated.shuffleMode,
@@ -84,8 +89,11 @@ function createSettingsStore() {
                         playback_mode: updated.playbackMode,
                         updated_at: new Date().toISOString()
                     });
+                    if (error) {
+                        console.error("Supabase settings sync error:", error);
+                    }
                 } catch (e) {
-                    console.error("Supabase settings sync failed:", e);
+                    console.error("Supabase settings sync exception:", e);
                 }
             }
         }

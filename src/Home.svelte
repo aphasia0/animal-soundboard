@@ -152,8 +152,32 @@
     <div class="home">
         <!-- Auth button -->
         <div class="auth-area">
-            <button class="back-button" on:click={goBack}> ← Cambia </button>
-            <button class="auth-btn" on:click={handleLoginClick}>
+            <button
+                class="back-button"
+                on:click={goBack}
+                title="Cambia categoria"
+                data-tooltip="Cambia categoria"
+            >
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    width="24"
+                    height="24"
+                >
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 19 5 12 12 5" />
+                </svg>
+            </button>
+            <button
+                class="auth-btn"
+                on:click={handleLoginClick}
+                title={currentUser ? "Account" : "Accedi"}
+                data-tooltip={currentUser ? "Account" : "Accedi"}
+            >
                 {#if currentUser}
                     <span class="user-avatar">👤</span>
                 {:else}
@@ -353,9 +377,11 @@
         background: rgba(255, 255, 255, 0.9);
         border: none;
         border-radius: 15px;
-        padding: 0.75rem 1.5rem;
-        font-size: 1rem;
-        font-weight: bold;
+        width: 3.2rem;
+        height: 3.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         color: #667eea;
         cursor: pointer;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);

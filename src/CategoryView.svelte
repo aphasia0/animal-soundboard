@@ -569,16 +569,36 @@
     style="--primary-color:{primaryColor}; --secondary-color:{secondaryColor};"
 >
     <div class="soundboard">
-        <button class="back-button" on:click={goBack}> ← Indietro </button>
-        <button class="select-btn" on:click={() => (showSelector = true)}
-            >Seleziona</button
-        >
         <div class="center-btns">
+            <!-- Back Button (Icon Only) -->
+            <button
+                class="palette-btn"
+                on:click={goBack}
+                title="Indietro"
+                data-tooltip="Indietro"
+            >
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    width="26"
+                    height="26"
+                >
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 19 5 12 12 5" />
+                </svg>
+            </button>
             <button
                 class="shuffle-btn"
                 class:active={shuffleMode}
                 on:click={() => dispatch("toggleShuffle", !shuffleMode)}
                 title={shuffleMode ? "Random" : "Sequenziale"}
+                data-tooltip={shuffleMode
+                    ? "Ordine: Casuale"
+                    : "Ordine: Sequenziale"}
             >
                 <svg
                     viewBox="0 0 24 24"
@@ -603,6 +623,7 @@
                 class="palette-btn"
                 on:click={() => (showColorPicker = !showColorPicker)}
                 title="Colori card"
+                data-tooltip="Colori card"
             >
                 <svg
                     viewBox="0 0 24 24"
@@ -630,6 +651,7 @@
                 class:time-active={maxTime === null}
                 on:click={() => (showTimePicker = !showTimePicker)}
                 title="Durata ({timeLabel(maxTime)})"
+                data-tooltip="Durata ({timeLabel(maxTime)})"
             >
                 <svg
                     viewBox="0 0 24 24"
@@ -653,6 +675,7 @@
                 class:playback-resume={playbackMode === "resume"}
                 on:click={() => (showPlaybackPicker = !showPlaybackPicker)}
                 title="Modalità riproduzione ({playbackMode})"
+                data-tooltip="Modalità riproduzione"
             >
                 <!-- Play-settings icon -->
                 <svg
@@ -671,6 +694,30 @@
                         opacity="0.15"
                     />
                     <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+            </button>
+
+            <!-- Card Selector (Icon Only) -->
+            <button
+                class="palette-btn"
+                on:click={() => (showSelector = true)}
+                title="Seleziona card"
+                data-tooltip="Seleziona card"
+            >
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    width="26"
+                    height="26"
+                >
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
                 </svg>
             </button>
         </div>
@@ -865,6 +912,7 @@
                         <button
                             class="fab-action fab-add"
                             title="Aggiungi card"
+                            data-tooltip="Aggiungi card"
                             on:click={() => {
                                 showFab = false;
                                 addCard();
@@ -889,6 +937,7 @@
                             <button
                                 class="fab-action fab-delete"
                                 title="Elimina card"
+                                data-tooltip="Elimina card"
                                 on:click={() => {
                                     showFab = false;
                                     cardToDelete = items[currentIndex];
@@ -917,6 +966,7 @@
                             <button
                                 class="fab-action fab-edit"
                                 title="Modifica card"
+                                data-tooltip="Modifica card"
                                 on:click={openEditCard}
                             >
                                 <svg
@@ -945,6 +995,7 @@
                     class="fab-main"
                     class:fab-open={showFab}
                     title="Opzioni"
+                    data-tooltip="Opzioni"
                     on:click={() => (showFab = !showFab)}
                 >
                     <svg
@@ -1151,32 +1202,7 @@
         box-sizing: border-box;
         position: relative;
     }
-    .back-button,
-    .select-btn {
-        position: absolute;
-        top: 1rem;
-        background: rgba(255, 255, 255, 0.9);
-        border: none;
-        border-radius: 15px;
-        height: 3.2rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        color: #667eea;
-        cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        transition: all 0.2s;
-        z-index: 10;
-        padding: 0 1.5rem;
-        font-size: 1.1rem;
-    }
-    .back-button {
-        left: 1rem;
-    }
-    .select-btn {
-        right: 1rem;
-    }
+    /* Back button is now a palette-btn inside center-btns */
     /* Centered flex container for shuffle + palette buttons */
     .center-btns {
         position: absolute;
@@ -1194,7 +1220,7 @@
         border: none;
         border-radius: 15px;
         height: 3.2rem;
-        padding: 0 1rem;
+        width: 3.2rem;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1426,8 +1452,7 @@
         animation: infinitePulse 2s ease infinite;
         box-shadow: none;
     }
-    .back-button:hover,
-    .select-btn:hover {
+    .palette-btn:hover {
         background: white;
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
@@ -1722,17 +1747,14 @@
     }
 
     @media (max-width: 768px) {
-        .back-button,
-        .select-btn,
-        .shuffle-btn {
-            padding: 0 1rem;
-            font-size: 0.9rem;
+        .shuffle-btn,
+        .palette-btn {
+            padding: 0;
+            width: 2.8rem;
             height: 2.8rem;
-            top: 0.75rem;
         }
         .shuffle-btn {
             font-size: 1.2rem;
-            padding: 0 0.8rem;
         }
         .item-name {
             font-size: 2rem;

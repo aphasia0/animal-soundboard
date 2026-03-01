@@ -97,10 +97,33 @@
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div class="story-container" on:click={handleClick}>
-        <img class="story-bg" src={currentChunk.image} alt="" />
-        <button class="back-button" on:click|stopPropagation={goBack}
-            >← Indietro</button
+        <picture class="story-bg-container">
+            <source
+                media="(orientation: portrait)"
+                srcset={currentChunk.imagePortrait}
+            />
+            <img class="story-bg" src={currentChunk.imageLandscape} alt="" />
+        </picture>
+        <button
+            class="back-button"
+            on:click|stopPropagation={goBack}
+            title="Indietro"
+            data-tooltip="Indietro"
         >
+            <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                width="24"
+                height="24"
+            >
+                <line x1="19" y1="12" x2="5" y2="12" />
+                <polyline points="12 19 5 12 12 5" />
+            </svg>
+        </button>
 
         {#if currentIndex === story.chunks.length - 1 && !isPlaying && showText}
             <div class="end-screen">
@@ -147,14 +170,19 @@
         cursor: pointer;
     }
 
-    .story-bg {
+    .story-bg-container {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
+        z-index: 0;
+    }
+
+    .story-bg {
+        width: 100%;
+        height: 100%;
         object-fit: cover;
         object-position: center center;
-        z-index: 0;
         transition: opacity 0.5s ease-in-out;
     }
 
@@ -165,19 +193,27 @@
         background: rgba(255, 255, 255, 0.9);
         border: none;
         border-radius: 15px;
-        padding: 0.75rem 1.5rem;
-        font-size: 1.1rem;
-        font-weight: bold;
+        width: 3.2rem;
+        height: 3.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         color: #667eea;
         cursor: pointer;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         z-index: 100;
+        transition: all 0.2s;
+    }
+    .back-button:hover {
+        background: white;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
     }
 
     .text-overlay {
         background: rgba(0, 0, 0, 0.65);
         color: white;
-        padding: 2.5rem 3rem 2.5rem 3rem;
+        padding: 2.5rem 3rem calc(2.5rem + env(safe-area-inset-bottom)) 3rem;
         width: 100%;
         text-align: center;
         backdrop-filter: blur(8px);
@@ -253,7 +289,7 @@
             font-size: 1.3rem;
         }
         .text-overlay {
-            padding: 1.5rem 1rem 1.5rem 1rem;
+            padding: 1.5rem 1rem calc(1.5rem + env(safe-area-inset-bottom)) 1rem;
         }
     }
 </style>

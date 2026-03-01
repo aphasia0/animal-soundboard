@@ -29,9 +29,9 @@ async function generateAudio(text, outputPath) {
         const request = {
             input: { text: text },
             // Simuliamo una voce da cantastorie in italiano
-            voice: { languageCode: 'it-IT', name: 'it-IT-Neural2-C' },
+            voice: { languageCode: 'it-IT', name: 'it-IT-Neural2-A', ssmlGender: 'FEMALE' },
             // Tono leggermente più acuto e allegro per bambini
-            audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95, pitch: 2.0 },
+            audioConfig: { audioEncoding: 'MP3', speakingRate: 0.85, pitch: 2.0 },
         };
 
         const [response] = await ttsClient.synthesizeSpeech(request);
@@ -42,7 +42,7 @@ async function generateAudio(text, outputPath) {
     }
 }
 
-async function generateImage(prompt, outputPath, storylineContext = '') {
+async function generateImage(prompt, outputPath, storylineContext = '', aspectRatio = '1:1') {
     if (fs.existsSync(outputPath)) {
         console.log(`Image already exists: ${outputPath}`);
         return;
@@ -53,7 +53,7 @@ async function generateImage(prompt, outputPath, storylineContext = '') {
         return;
     }
 
-    console.log(`Generating image for: ${prompt.substring(0, 30)}...`);
+    console.log(`Generating image for: ${prompt.substring(0, 30)}... (Aspect Ratio: ${aspectRatio})`);
     try {
         const stylePrefix = "A colorful, cute illustration for a children's storybook, in a vibrant, slightly silly and fun style. Do not add any text.";
         const storylinePrefix = storylineContext ? `Story context: ${storylineContext}. ` : '';
@@ -61,6 +61,12 @@ async function generateImage(prompt, outputPath, storylineContext = '') {
         const response = await ai.models.generateContent({
             model: "gemini-3.1-flash-image-preview",
             contents: stylePrefix + ' ' + storylinePrefix + prompt,
+            config: {
+                imageConfig: {
+                    aspectRatio: aspectRatio,
+                    imageSize: "0.5K",
+                }
+            }
         });
         let imageSaved = false;
         for (const part of response.candidates[0].content.parts) {
@@ -94,11 +100,6 @@ async function main() {
 
     for (const story of stories) {
         console.log(`\nProcessing story: ${story.name}`);
-
-        // Generate cover image
-        const coverPath = path.join(__dirname, '..', 'public', story.image);
-        await generateImage(`Cover art for ${story.name}`, coverPath, story.storyline);
-
         let i = 1;
         for (const chunk of story.chunks) {
             console.log(`  Chunk ${i}/${story.chunks.length}`);
@@ -106,8 +107,11 @@ async function main() {
             const audioPath = path.join(__dirname, '..', 'public', chunk.sound);
             await generateAudio(chunk.text, audioPath);
 
-            const imagePath = path.join(__dirname, '..', 'public', chunk.image);
-            await generateImage(chunk.text, imagePath, story.storyline);
+            const imagePathL = path.join(__dirname, '..', 'public', chunk.imageLandscape);
+            const imagePathP = path.join(__dirname, '..', 'public', chunk.imagePortrait);
+
+            await generateImage(chunk.text, imagePathL, story.storyline, '16:9');
+            await generateImage(chunk.text, imagePathP, story.storyline, '9:16');
 
             i++;
         }
