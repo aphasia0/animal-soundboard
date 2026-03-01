@@ -36,10 +36,6 @@
   settingsStore.subscribe((v) => {
     settings = v;
     if (v.cardMode) selectedCardMode = v.cardMode;
-    // Auto-skip mode select if settings are present and we are at the start
-    if (v.hasSettings && currentView === "modeSelect") {
-      currentView = "home";
-    }
   });
 
   // Modal state
@@ -152,40 +148,89 @@
 
   onMount(() => {
     initAuth();
+    window.addEventListener("popstate", handlePopState);
+    syncViewWithUrl();
+    return () => window.removeEventListener("popstate", handlePopState);
   });
+
+  function syncViewWithUrl() {
+    const path = window.location.pathname;
+    if (path === "/stories") {
+      currentView = "stories";
+    } else if (path === "/home") {
+      currentView = "home";
+    } else if (path.startsWith("/category/")) {
+      const id = path.split("/")[2];
+      selectedUserCategory = { id };
+      currentView = "userCategory";
+    } else if (path === "/animals") {
+      currentView = "animals";
+    } else if (path === "/work") {
+      currentView = "work";
+    } else if (path === "/music") {
+      currentView = "music";
+    } else if (path === "/people") {
+      currentView = "people";
+    } else if (path === "/sentences") {
+      currentView = "sentences";
+    } else {
+      currentView = "modeSelect";
+    }
+  }
+
+  function handlePopState() {
+    syncViewWithUrl();
+  }
+
+  function navigate(view, userCat = null) {
+    let path = "/";
+    if (view === "home") path = "/home";
+    else if (view === "stories") path = "/stories";
+    else if (view === "animals") path = "/animals";
+    else if (view === "work") path = "/work";
+    else if (view === "music") path = "/music";
+    else if (view === "people") path = "/people";
+    else if (view === "sentences") path = "/sentences";
+    else if (view === "userCategory" && userCat)
+      path = `/category/${userCat.id}`;
+
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+    }
+    currentView = view;
+    if (userCat) selectedUserCategory = userCat;
+  }
 
   function handleModeSelect(event) {
     const mode = event.detail;
     if (mode === "stories") {
-      currentView = "stories";
+      navigate("stories");
     } else {
       selectedCardMode = mode;
       settingsStore.updateSettings({ cardMode: mode }, currentUser?.id);
-      currentView = "home";
+      navigate("home");
     }
   }
 
   function handleCategorySelect(event) {
     const { categoryId } = event.detail;
     selectedCategory = categoryId;
-    currentView = categoryId;
+    navigate(categoryId);
   }
 
   function handleUserCategorySelect(event) {
     const { category } = event.detail;
-    selectedUserCategory = category;
-    selectedCategory = "userCategory";
-    currentView = "userCategory";
+    navigate("userCategory", category);
   }
 
   function handleBack() {
-    currentView = "home";
     selectedCategory = null;
     selectedUserCategory = null;
+    navigate("home");
   }
 
   function handleBackToMode() {
-    currentView = "modeSelect";
+    navigate("modeSelect");
   }
 
   function handleJumpTo(e) {
@@ -200,13 +245,13 @@
     };
     if (viewMap[category]) {
       selectedCategory = viewMap[category];
-      currentView = viewMap[category];
+      navigate(viewMap[category]);
       selectedUserCategory = null;
     } else {
       // Must be a custom category UUID
       selectedUserCategory = { id: category };
       selectedCategory = "userCategory";
-      currentView = "userCategory";
+      navigate("userCategory", selectedUserCategory);
     }
   }
 
@@ -250,7 +295,11 @@
 </script>
 
 {#if currentView === "modeSelect"}
-  <ModeSelect on:select={handleModeSelect} />
+  <ModeSelect
+    {currentUser}
+    on:select={handleModeSelect}
+    on:showAuth={handleShowAuth}
+  />
 {:else if currentView === "home"}
   <Home
     on:select={handleCategorySelect}

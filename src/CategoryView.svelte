@@ -1464,7 +1464,7 @@
     /* ── FAB Speed-dial ─────────────────────────────── */
     .fab-container {
         position: fixed;
-        bottom: 1.5rem;
+        bottom: calc(1.5rem + env(safe-area-inset-bottom));
         right: 1.5rem;
         display: flex;
         flex-direction: column;
@@ -1758,10 +1758,11 @@
         }
         .item-name {
             font-size: 2rem;
-            bottom: 1rem;
+            bottom: calc(1rem + env(safe-area-inset-bottom));
         }
         .dual-container .item-name {
             font-size: 1.5rem;
+            bottom: calc(0.5rem + env(safe-area-inset-bottom));
         }
         .progress-container,
         .dual-container {

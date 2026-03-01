@@ -8,9 +8,16 @@
     import { music } from "./music.js";
     import { people } from "./people.js";
     import { sentences } from "./sentences.js";
+
     import AddCategoryModal from "./AddCategoryModal.svelte";
 
     const dispatch = createEventDispatcher();
+
+    let currentUser;
+    user.subscribe((v) => {
+        currentUser = v;
+        loadUserCategories();
+    });
 
     const categories = [
         {
@@ -50,11 +57,7 @@
         },
     ];
 
-    let currentUser;
-    user.subscribe((v) => (currentUser = v));
-
     let userCategories = [];
-    let showUserMenu = false;
 
     // Category edit/delete state
     let showEditCatModal = false;
@@ -88,7 +91,6 @@
 
     onMount(() => {
         loadUserCategories();
-        user.subscribe(() => loadUserCategories());
     });
 
     async function loadUserCategories() {
@@ -96,7 +98,6 @@
             userCategories = [];
             return;
         }
-        console.log("ciao");
         const supabase = getSupabase();
         if (!supabase) return;
         const { data } = await supabase
@@ -106,7 +107,9 @@
             .order("created_at");
 
         userCategories = (data || []).map((cat) => ({
-            ...cat,
+            id: cat.id,
+            name: cat.name,
+            emoji: cat.emoji,
             cardCount: cat.user_cards?.[0]?.count || 0,
         }));
     }
@@ -122,25 +125,8 @@
     }
 
     function handleAddCategory() {
-        if (!currentUser) {
-            dispatch("showAuth");
-        } else {
-            dispatch("addCategory");
-        }
-    }
-
-    function handleLoginClick() {
-        if (currentUser) {
-            showUserMenu = !showUserMenu;
-        } else {
-            dispatch("showAuth");
-        }
-    }
-
-    async function handleLogout() {
-        await signOut();
-        showUserMenu = false;
-        userCategories = [];
+        // Assuming authentication is handled elsewhere or not required for adding categories in this context
+        dispatch("addCategory");
     }
 
     function goBack() {
@@ -150,8 +136,7 @@
 
 <main>
     <div class="home">
-        <!-- Auth button -->
-        <div class="auth-area">
+        <div class="top-nav">
             <button
                 class="back-button"
                 on:click={goBack}
@@ -172,26 +157,6 @@
                     <polyline points="12 19 5 12 12 5" />
                 </svg>
             </button>
-            <button
-                class="auth-btn"
-                on:click={handleLoginClick}
-                title={currentUser ? "Account" : "Accedi"}
-                data-tooltip={currentUser ? "Account" : "Accedi"}
-            >
-                {#if currentUser}
-                    <span class="user-avatar">👤</span>
-                {:else}
-                    <span class="login-text">Accedi</span>
-                {/if}
-            </button>
-            {#if showUserMenu && currentUser}
-                <div class="user-menu">
-                    <div class="user-email">{currentUser.email}</div>
-                    <button class="logout-btn" on:click={handleLogout}
-                        >Esci</button
-                    >
-                </div>
-            {/if}
         </div>
 
         <h3 class="title">Sound Pad</h3>
@@ -364,13 +329,11 @@
         box-sizing: border-box;
     }
 
-    .auth-area {
-        position: fixed;
+    /* ── Top Navigation ─────────────────────────────── */
+    .top-nav {
+        position: absolute;
         top: 1rem;
         left: 1rem;
-        right: 1rem;
-        display: flex;
-        justify-content: space-between;
         z-index: 100;
     }
     .back-button {
@@ -391,61 +354,6 @@
         background: white;
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-    }
-    .auth-btn {
-        background: rgba(255, 255, 255, 0.9);
-        border: none;
-        border-radius: 15px;
-        padding: 0.75rem 1.5rem;
-        font-size: 1.1rem;
-        font-weight: bold;
-        color: #667eea;
-        cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        transition: all 0.2s;
-    }
-    .auth-btn:hover {
-        background: white;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-    }
-    .user-avatar {
-        font-size: 1.3rem;
-    }
-    .login-text {
-        font-size: 1rem;
-    }
-    .user-menu {
-        position: absolute;
-        top: 100%;
-        right: 0;
-        margin-top: 0.5rem;
-        background: white;
-        border-radius: 16px;
-        padding: 1rem;
-        min-width: 200px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-    }
-    .user-email {
-        font-size: 0.85rem;
-        color: #666;
-        margin-bottom: 0.75rem;
-        word-break: break-all;
-    }
-    .logout-btn {
-        width: 100%;
-        background: #ef4444;
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 0.6rem;
-        font-size: 1rem;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .logout-btn:hover {
-        background: #dc2626;
     }
 
     .title {
@@ -646,6 +554,9 @@
     }
 
     @media (max-width: 768px) {
+        .home {
+            padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+        }
         .title {
             font-size: 2rem;
             margin-bottom: 1rem;
@@ -673,6 +584,7 @@
     @media (max-width: 480px) {
         .home {
             padding: 1rem;
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom));
         }
         .title {
             font-size: 1.5rem;
