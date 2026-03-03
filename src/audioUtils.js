@@ -197,3 +197,15 @@ export function stopAllChannels() {
         stopAudioChannel(id);
     }
 }
+
+/**
+ * Returns the duration (in seconds) of a cached sound buffer.
+ * Returns 0 if the sound hasn't been loaded yet.
+ *
+ * @param {string} src - Path to the audio file
+ * @returns {number} duration in seconds
+ */
+export function getAudioDuration(src) {
+    const buffer = bufferCache.get(src);
+    return buffer ? buffer.duration : 0;
+}

@@ -91,7 +91,21 @@
             pauseCurrentChunk();
         }
     }
+
+    function handleKeyDown(e) {
+        // Ignore if user is typing in an input (though there are no inputs here currently)
+        if (
+            e.target.tagName === "INPUT" ||
+            e.target.tagName === "TEXTAREA" ||
+            e.target.isContentEditable
+        )
+            return;
+
+        handleClick();
+    }
 </script>
+
+<svelte:window on:keydown={handleKeyDown} />
 
 <main>
     <!-- svelte-ignore a11y-click-events-have-key-events -->

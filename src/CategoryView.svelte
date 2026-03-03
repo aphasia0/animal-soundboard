@@ -14,6 +14,7 @@
         stopAllChannels,
         preloadSounds,
         resumeAudioContext,
+        getAudioDuration,
     } from "./audioUtils.js";
 
     export let items = [];
@@ -61,6 +62,8 @@
         isPressed = false,
         pressStartTime = null;
     let animationFrameId = null;
+    // Resolved max-time for the current press session (ms); null=infinite
+    let activeMaxTime = null;
 
     // Dual card state
     let indexA = 0,
@@ -75,6 +78,8 @@
         pressStartTimeB = null;
     let animationFrameIdA = null,
         animationFrameIdB = null;
+    let activeMaxTimeA = null;
+    let activeMaxTimeB = null;
 
     function checkOrientation() {
         isLandscape = window.innerWidth > window.innerHeight;
@@ -200,6 +205,7 @@
         { label: "10s", value: 10000 },
         { label: "30s", value: 30000 },
         { label: "\u221e", value: null },
+        { label: "Auto", value: "auto" },
     ];
 
     async function saveTime(ms) {
@@ -213,8 +219,18 @@
         await saveTime(Math.round(secs * 1000));
     }
     function timeLabel(ms) {
+        if (ms === "auto") return "Auto";
         if (ms === null) return "\u221e";
         return ms < 1000 ? ms + "ms" : ms / 1000 + "s";
+    }
+
+    /** Resolve the effective ms duration for a given sound URL. */
+    function resolveMaxTime(soundSrc) {
+        if (maxTime === "auto") {
+            const dur = getAudioDuration(soundSrc);
+            return dur > 0 ? dur * 1000 : 5000; // fallback 5s if not cached yet
+        }
+        return maxTime;
     }
 
     async function saveColors() {
@@ -286,6 +302,7 @@
             isPressed = true;
             pressStartTime = Date.now();
             accumulatedTime = 0;
+            activeMaxTime = resolveMaxTime(items[currentIndex].sound);
             resumeAudioContext();
             playAudio(items[currentIndex].sound, 0);
             updateProgress();
@@ -295,6 +312,7 @@
         if (isPressed) return;
         isPressed = true;
         pressStartTime = Date.now();
+        activeMaxTime = resolveMaxTime(items[currentIndex].sound);
         resumeAudioContext();
         playAudio(
             items[currentIndex].sound,
@@ -310,18 +328,19 @@
         const offset = stopAudio();
         if (playbackMode === "resume") audioOffset = offset;
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        if (maxTime !== null && accumulatedTime >= maxTime) next();
-        else if (maxTime !== null) progress = (accumulatedTime / maxTime) * 100;
+        if (activeMaxTime !== null && accumulatedTime >= activeMaxTime) next();
+        else if (activeMaxTime !== null)
+            progress = (accumulatedTime / activeMaxTime) * 100;
     }
     function updateProgress() {
         if (!isPressed) return;
         const t = accumulatedTime + (Date.now() - pressStartTime);
-        if (maxTime === null) {
+        if (activeMaxTime === null) {
             animationFrameId = requestAnimationFrame(updateProgress);
             return;
         }
-        progress = Math.min((t / maxTime) * 100, 100);
-        if (t >= maxTime) {
+        progress = Math.min((t / activeMaxTime) * 100, 100);
+        if (t >= activeMaxTime) {
             if (playbackMode === "autoplay") {
                 // Auto-advance without stopping
                 accumulatedTime = 0;
@@ -331,6 +350,7 @@
                 if (shuffleMode) currentIndex = getRandomIndex(currentIndex);
                 else currentIndex = (currentIndex + 1) % items.length;
                 audioOffset = 0;
+                activeMaxTime = resolveMaxTime(items[currentIndex].sound);
                 resumeAudioContext();
                 playAudio(items[currentIndex].sound, 0);
                 animationFrameId = requestAnimationFrame(updateProgress);
@@ -365,6 +385,7 @@
             isPressedA = true;
             pressStartTimeA = Date.now();
             accumulatedTimeA = 0;
+            activeMaxTimeA = resolveMaxTime(items[indexA].sound);
             resumeAudioContext();
             playAudioChannel(items[indexA].sound, "cardA", 0);
             updateProgressA();
@@ -374,6 +395,7 @@
         if (isPressedA) return;
         isPressedA = true;
         pressStartTimeA = Date.now();
+        activeMaxTimeA = resolveMaxTime(items[indexA].sound);
         resumeAudioContext();
         playAudioChannel(
             items[indexA].sound,
@@ -390,19 +412,20 @@
         const offset = stopAudioChannel("cardA");
         if (playbackMode === "resume") audioOffsetA = offset;
         if (animationFrameIdA) cancelAnimationFrame(animationFrameIdA);
-        if (maxTime !== null && accumulatedTimeA >= maxTime) nextA();
-        else if (maxTime !== null)
-            progressA = (accumulatedTimeA / maxTime) * 100;
+        if (activeMaxTimeA !== null && accumulatedTimeA >= activeMaxTimeA)
+            nextA();
+        else if (activeMaxTimeA !== null)
+            progressA = (accumulatedTimeA / activeMaxTimeA) * 100;
     }
     function updateProgressA() {
         if (!isPressedA) return;
         const t = accumulatedTimeA + (Date.now() - pressStartTimeA);
-        if (maxTime === null) {
+        if (activeMaxTimeA === null) {
             animationFrameIdA = requestAnimationFrame(updateProgressA);
             return;
         }
-        progressA = Math.min((t / maxTime) * 100, 100);
-        if (t >= maxTime) {
+        progressA = Math.min((t / activeMaxTimeA) * 100, 100);
+        if (t >= activeMaxTimeA) {
             if (playbackMode === "autoplay") {
                 accumulatedTimeA = 0;
                 pressStartTimeA = Date.now();
@@ -411,6 +434,7 @@
                 if (shuffleMode) indexA = getRandomIndex(indexA);
                 else indexA = (indexA + 1) % items.length;
                 audioOffsetA = 0;
+                activeMaxTimeA = resolveMaxTime(items[indexA].sound);
                 resumeAudioContext();
                 playAudioChannel(items[indexA].sound, "cardA", 0);
                 animationFrameIdA = requestAnimationFrame(updateProgressA);
@@ -445,6 +469,7 @@
             isPressedB = true;
             pressStartTimeB = Date.now();
             accumulatedTimeB = 0;
+            activeMaxTimeB = resolveMaxTime(items[indexB].sound);
             resumeAudioContext();
             playAudioChannel(items[indexB].sound, "cardB", 0);
             updateProgressB();
@@ -454,6 +479,7 @@
         if (isPressedB) return;
         isPressedB = true;
         pressStartTimeB = Date.now();
+        activeMaxTimeB = resolveMaxTime(items[indexB].sound);
         resumeAudioContext();
         playAudioChannel(
             items[indexB].sound,
@@ -470,19 +496,20 @@
         const offset = stopAudioChannel("cardB");
         if (playbackMode === "resume") audioOffsetB = offset;
         if (animationFrameIdB) cancelAnimationFrame(animationFrameIdB);
-        if (maxTime !== null && accumulatedTimeB >= maxTime) nextB();
-        else if (maxTime !== null)
-            progressB = (accumulatedTimeB / maxTime) * 100;
+        if (activeMaxTimeB !== null && accumulatedTimeB >= activeMaxTimeB)
+            nextB();
+        else if (activeMaxTimeB !== null)
+            progressB = (accumulatedTimeB / activeMaxTimeB) * 100;
     }
     function updateProgressB() {
         if (!isPressedB) return;
         const t = accumulatedTimeB + (Date.now() - pressStartTimeB);
-        if (maxTime === null) {
+        if (activeMaxTimeB === null) {
             animationFrameIdB = requestAnimationFrame(updateProgressB);
             return;
         }
-        progressB = Math.min((t / maxTime) * 100, 100);
-        if (t >= maxTime) {
+        progressB = Math.min((t / activeMaxTimeB) * 100, 100);
+        if (t >= activeMaxTimeB) {
             if (playbackMode === "autoplay") {
                 accumulatedTimeB = 0;
                 pressStartTimeB = Date.now();
@@ -491,6 +518,7 @@
                 if (shuffleMode) indexB = getRandomIndex(indexB);
                 else indexB = (indexB + 1) % items.length;
                 audioOffsetB = 0;
+                activeMaxTimeB = resolveMaxTime(items[indexB].sound);
                 resumeAudioContext();
                 playAudioChannel(items[indexB].sound, "cardB", 0);
                 animationFrameIdB = requestAnimationFrame(updateProgressB);
