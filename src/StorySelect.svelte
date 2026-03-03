@@ -4,12 +4,6 @@
 
     const dispatch = createEventDispatcher();
 
-    // Map story id to a representative emoji
-    const storyEmojis = {
-        "cappuccetto-rosso": "🐺",
-        pinocchio: "🪵",
-    };
-
     function selectStory(story) {
         dispatch("select", { story });
     }
@@ -49,10 +43,22 @@
         <div class="grid">
             {#each stories as story}
                 <button class="card" on:click={() => selectStory(story)}>
-                    <div class="emoji">{storyEmojis[story.id] ?? "📖"}</div>
-                    <div class="name">{story.name}</div>
-                    <div class="description">
-                        {story.chunks.length} capitoli
+                    <div class="image-container">
+                        {#if story.chunks && story.chunks[0]}
+                            <img
+                                src={story.chunks[0].imagePortrait}
+                                alt={story.name}
+                                class="story-image"
+                            />
+                        {:else}
+                            <div class="emoji-fallback">📖</div>
+                        {/if}
+                    </div>
+                    <div class="card-info">
+                        <div class="name">{story.name}</div>
+                        <div class="description">
+                            {story.chunks.length} capitoli
+                        </div>
                     </div>
                 </button>
             {/each}
@@ -132,46 +138,70 @@
     }
 
     .card {
-        background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+        background: white;
         border: none;
-        border-radius: 30px;
-        padding: 3rem 2rem;
+        border-radius: 24px;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        min-height: 280px;
+        user-select: none;
+    }
+    .card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+    }
+
+    .image-container {
+        width: 100%;
+        height: 180px;
+        background: #f0f0f0;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .story-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.5s ease;
+    }
+    .card:hover .story-image {
+        transform: scale(1.1);
+    }
+
+    .emoji-fallback {
+        font-size: 4rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+    }
+
+    .card-info {
+        padding: 1.5rem;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-        min-height: 250px;
-        user-select: none;
-        -webkit-user-select: none;
-    }
-    .card:hover {
-        transform: translateY(-10px) scale(1.05);
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    }
-    .card:active {
-        transform: translateY(-5px) scale(1.02);
-    }
-
-    .emoji {
-        font-size: 6rem;
-        margin-bottom: 1rem;
-        line-height: 1;
     }
 
     .name {
-        font-size: 2rem;
-        font-weight: bold;
-        color: #667eea;
-        margin-bottom: 0.5rem;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 0.25rem;
         text-align: center;
     }
 
     .description {
-        font-size: 1.2rem;
-        color: #666;
+        font-size: 1rem;
+        color: #888;
         text-align: center;
     }
 
@@ -185,18 +215,20 @@
             max-width: 600px;
         }
         .card {
-            padding: 2rem 1rem;
-            min-height: 200px;
-            border-radius: 20px;
+            min-height: 220px;
+            border-radius: 18px;
         }
-        .emoji {
-            font-size: 4rem;
+        .image-container {
+            height: 130px;
+        }
+        .card-info {
+            padding: 1rem;
         }
         .name {
-            font-size: 1.5rem;
+            font-size: 1.3rem;
         }
         .description {
-            font-size: 1rem;
+            font-size: 0.9rem;
         }
     }
 
@@ -213,17 +245,16 @@
             gap: 0.75rem;
         }
         .card {
-            padding: 1.5rem 1rem;
-            min-height: 150px;
+            min-height: 180px;
         }
-        .emoji {
-            font-size: 3rem;
+        .image-container {
+            height: 100px;
         }
         .name {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
         }
         .description {
-            font-size: 0.9rem;
+            font-size: 0.8rem;
         }
     }
 </style>

@@ -53,7 +53,7 @@ async function generateImage(prompt, outputPath, storylineContext = '', aspectRa
         return;
     }
 
-    console.log(`Generating image for: ${prompt.substring(0, 30)}... (Aspect Ratio: ${aspectRatio})`);
+    console.log(`Generating image for: ${prompt.substring(0, 3000)}... (Aspect Ratio: ${aspectRatio})`);
     try {
         const stylePrefix = "A colorful, cute illustration for a children's storybook, in a vibrant, slightly silly and fun style. Do not add any text.";
         const storylinePrefix = storylineContext ? `Story context: ${storylineContext}. ` : '';
@@ -68,8 +68,35 @@ async function generateImage(prompt, outputPath, storylineContext = '', aspectRa
                 }
             }
         });
+
+        if (!response.candidates || response.candidates.length === 0) {
+            console.error(`No candidates returned for ${outputPath}. Full response:`, JSON.stringify(response, null, 2));
+            return;
+        }
+
+        const candidate = response.candidates[0];
+
+        if (candidate.finishReason === 'SAFETY' || candidate.finishReason === 'OTHER') {
+            console.error(`Unexpected candidate structure for ${outputPath}. Full response:`, JSON.stringify(response, null, 2));
+
+            console.warn(`Image generation for ${outputPath} was blocked. Reason: ${candidate.finishReason}`);
+            if (candidate.safetyRatings) {
+                console.warn('Safety Ratings:', JSON.stringify(candidate.safetyRatings, null, 2));
+            }
+            // If it's blocked, we might want to know if there was a prompt feedback
+            if (response.promptFeedback) {
+                console.warn('Prompt Feedback:', JSON.stringify(response.promptFeedback, null, 2));
+            }
+            return;
+        }
+
+        if (!candidate.content || !candidate.content.parts) {
+            console.error(`Unexpected candidate structure for ${outputPath}. Full response:`, JSON.stringify(response, null, 2));
+            return;
+        }
+
         let imageSaved = false;
-        for (const part of response.candidates[0].content.parts) {
+        for (const part of candidate.content.parts) {
             if (part.text) {
                 console.log(part.text);
             } else if (part.inlineData) {
@@ -86,7 +113,8 @@ async function generateImage(prompt, outputPath, storylineContext = '', aspectRa
             console.warn(`No image data returned for ${outputPath}`);
         }
     } catch (e) {
-        console.error(`Failed to generate image for ${outputPath}:`, e.message);
+        console.error(`Failed to generate image for ${outputPath}:`);
+        console.error(e);
     }
 }
 
