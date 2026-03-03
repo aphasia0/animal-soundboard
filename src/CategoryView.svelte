@@ -512,7 +512,7 @@
     // Keyboard support
     function handleKeyDown(e) {
         if (cardMode === 1) {
-            if (e.code === "Space") handlePressStart();
+            if (e.code === "Space" || e.code === "KeyA") handlePressStart();
         } else {
             if (e.code === "Space") handlePressStartA();
             if (e.code === "KeyA") handlePressStartB();
@@ -520,7 +520,7 @@
     }
     function handleKeyUp(e) {
         if (cardMode === 1) {
-            if (e.code === "Space") handlePressEnd();
+            if (e.code === "Space" || e.code === "KeyA") handlePressEnd();
         } else {
             if (e.code === "Space") handlePressEndA();
             if (e.code === "KeyA") handlePressEndB();
