@@ -514,16 +514,16 @@
         if (cardMode === 1) {
             if (e.code === "Space") handlePressStart();
         } else {
-            if (e.code === "ArrowLeft") handlePressStartA();
-            if (e.code === "ArrowRight") handlePressStartB();
+            if (e.code === "Space") handlePressStartA();
+            if (e.code === "KeyA") handlePressStartB();
         }
     }
     function handleKeyUp(e) {
         if (cardMode === 1) {
             if (e.code === "Space") handlePressEnd();
         } else {
-            if (e.code === "ArrowLeft") handlePressEndA();
-            if (e.code === "ArrowRight") handlePressEndB();
+            if (e.code === "Space") handlePressEndA();
+            if (e.code === "KeyA") handlePressEndB();
         }
     }
 
