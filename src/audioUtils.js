@@ -85,8 +85,9 @@ async function getBuffer(src) {
  *
  * @param {string} src - Path to the audio file
  * @param {number} [offset=0] - Playback start offset in seconds
+ * @param {boolean} [loop=true] - Whether the sound should loop
  */
-export async function playAudio(src, offset = 0) {
+export async function playAudio(src, offset = 0, loop = true) {
     if (!src) return; // skip undefined/null paths
     stopAudio();
 
@@ -103,7 +104,7 @@ export async function playAudio(src, offset = 0) {
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.loop = true;
+    source.loop = loop;
     source.connect(ctx.destination);
     source.start(0, safeOffset);
 
@@ -140,8 +141,9 @@ export function stopAudio() {
  * @param {string} src - Path to the audio file
  * @param {string} channelId - Unique channel identifier
  * @param {number} [offset=0] - Playback start offset in seconds
+ * @param {boolean} [loop=true] - Whether the sound should loop
  */
-export async function playAudioChannel(src, channelId, offset = 0) {
+export async function playAudioChannel(src, channelId, offset = 0, loop = true) {
     if (!src) return; // skip undefined/null paths
     stopAudioChannel(channelId);
 
@@ -157,7 +159,7 @@ export async function playAudioChannel(src, channelId, offset = 0) {
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.loop = true;
+    source.loop = loop;
     source.connect(ctx.destination);
     source.start(0, safeOffset);
 

@@ -8,8 +8,8 @@ const defaultSettings = {
     shuffleMode: true,
     primaryColor: '#39ff14',
     secondaryColor: '#ff0000',
-    maxTimeMs: 5000,              // null = infinite
-    playbackMode: 'restart',      // 'restart' | 'resume' | 'autoplay'
+    maxTimeMs: 'auto',              // 'auto' uses sound duration
+    playbackMode: 'once',          // 'restart' | 'resume' | 'autoplay' | 'once'
     hasSettings: false
 };
 

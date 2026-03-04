@@ -150,7 +150,7 @@
     let primaryColor = "#39ff14";
     let secondaryColor = "#ff0000";
     let currentUser = null;
-    let playbackMode = "restart"; // 'restart' | 'resume' | 'autoplay'
+    let playbackMode = "restart"; // 'restart' | 'resume' | 'autoplay' | 'once'
 
     // Audio offset tracking for resume mode (seconds)
     let audioOffset = 0;
@@ -163,8 +163,8 @@
     settingsStore.subscribe((s) => {
         primaryColor = s.primaryColor || "#39ff14";
         secondaryColor = s.secondaryColor || "#ff0000";
-        maxTime = s.maxTimeMs !== undefined ? s.maxTimeMs : 5000;
-        playbackMode = s.playbackMode || "restart";
+        maxTime = s.maxTimeMs !== undefined ? s.maxTimeMs : "auto";
+        playbackMode = s.playbackMode || "once";
     });
 
     async function savePlaybackMode(mode) {
@@ -343,8 +343,7 @@
             return;
         }
 
-        if (playbackMode === "autoplay" || playbackMode === "autoplay_loop") {
-            // "autoplay" now defaults to one-shot; toggle logic remains
+        if (playbackMode === "autoplay") {
             if (isPressed) {
                 isPressed = false;
                 stopAudio();
@@ -357,11 +356,26 @@
             pressStartTime = Date.now();
             accumulatedTime = 0;
             resumeAudioContext();
-            await playAudio(
-                currentItem.sound,
-                0,
-                playbackMode === "autoplay_loop",
-            );
+            await playAudio(currentItem.sound, 0);
+            activeMaxTime = resolveMaxTime(currentItem.sound);
+            updateProgress();
+            return;
+        }
+
+        if (playbackMode === "once") {
+            if (isPressed) {
+                isPressed = false;
+                stopAudio();
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                progress = 0;
+                accumulatedTime = 0;
+                return;
+            }
+            isPressed = true;
+            pressStartTime = Date.now();
+            accumulatedTime = 0;
+            resumeAudioContext();
+            await playAudio(currentItem.sound, 0, false); // No loop
             activeMaxTime = resolveMaxTime(currentItem.sound);
             updateProgress();
             return;
@@ -380,7 +394,7 @@
     }
     function handlePressEnd() {
         if (!isPressed) return;
-        if (playbackMode === "autoplay") return; // autoplay ignores release
+        if (playbackMode === "autoplay" || playbackMode === "once") return; // autoplay/once ignores release
         isPressed = false;
         accumulatedTime += Date.now() - pressStartTime;
         const offset = stopAudio();
@@ -400,10 +414,7 @@
         }
         progress = Math.min((t / activeMaxTime) * 100, 100);
         if (t >= activeMaxTime) {
-            if (
-                playbackMode === "autoplay" ||
-                playbackMode === "autoplay_loop"
-            ) {
+            if (playbackMode === "autoplay") {
                 // Auto-advance without stopping
                 accumulatedTime = 0;
                 pressStartTime = Date.now();
@@ -412,12 +423,15 @@
                 next();
                 activeMaxTime = resolveMaxTime(displayItem.sound);
                 resumeAudioContext();
-                playAudio(
-                    displayItem.sound,
-                    0,
-                    playbackMode === "autoplay_loop",
-                );
+                playAudio(displayItem.sound, 0);
                 animationFrameId = requestAnimationFrame(updateProgress);
+            } else if (playbackMode === "once") {
+                // One-shot playback completed
+                isPressed = false;
+                stopAudio();
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                progress = 100;
+                accumulatedTime = activeMaxTime;
             } else {
                 handlePressEnd();
             }
@@ -458,6 +472,25 @@
             return;
         }
 
+        if (playbackMode === "once") {
+            if (isPressedA) {
+                isPressedA = false;
+                stopAudioChannel("cardA");
+                if (animationFrameIdA) cancelAnimationFrame(animationFrameIdA);
+                progressA = 0;
+                accumulatedTimeA = 0;
+                return;
+            }
+            isPressedA = true;
+            pressStartTimeA = Date.now();
+            accumulatedTimeA = 0;
+            resumeAudioContext();
+            await playAudioChannel(currentItem.sound, "cardA", 0, false);
+            activeMaxTimeA = resolveMaxTime(currentItem.sound);
+            updateProgressA();
+            return;
+        }
+
         if (isPressedA) return;
         isPressedA = true;
         pressStartTimeA = Date.now();
@@ -472,7 +505,7 @@
     }
     function handlePressEndA() {
         if (!isPressedA) return;
-        if (playbackMode === "autoplay") return;
+        if (playbackMode === "autoplay" || playbackMode === "once") return;
         isPressedA = false;
         accumulatedTimeA += Date.now() - pressStartTimeA;
         const offset = stopAudioChannel("cardA");
@@ -492,10 +525,7 @@
         }
         progressA = Math.min((t / activeMaxTimeA) * 100, 100);
         if (t >= activeMaxTimeA) {
-            if (
-                playbackMode === "autoplay" ||
-                playbackMode === "autoplay_loop"
-            ) {
+            if (playbackMode === "autoplay") {
                 accumulatedTimeA = 0;
                 pressStartTimeA = Date.now();
                 progressA = 0;
@@ -506,6 +536,12 @@
                 resumeAudioContext();
                 playAudioChannel(displayItemA.sound, "cardA", 0);
                 animationFrameIdA = requestAnimationFrame(updateProgressA);
+            } else if (playbackMode === "once") {
+                isPressedA = false;
+                stopAudioChannel("cardA");
+                if (animationFrameIdA) cancelAnimationFrame(animationFrameIdA);
+                progressA = 100;
+                accumulatedTimeA = activeMaxTimeA;
             } else {
                 handlePressEndA();
             }
@@ -548,6 +584,25 @@
             return;
         }
 
+        if (playbackMode === "once") {
+            if (isPressedB) {
+                isPressedB = false;
+                stopAudioChannel("cardB");
+                if (animationFrameIdB) cancelAnimationFrame(animationFrameIdB);
+                progressB = 0;
+                accumulatedTimeB = 0;
+                return;
+            }
+            isPressedB = true;
+            pressStartTimeB = Date.now();
+            accumulatedTimeB = 0;
+            resumeAudioContext();
+            await playAudioChannel(currentItem.sound, "cardB", 0, false);
+            activeMaxTimeB = resolveMaxTime(currentItem.sound);
+            updateProgressB();
+            return;
+        }
+
         if (isPressedB) return;
         isPressedB = true;
         pressStartTimeB = Date.now();
@@ -562,7 +617,7 @@
     }
     function handlePressEndB() {
         if (!isPressedB) return;
-        if (playbackMode === "autoplay") return;
+        if (playbackMode === "autoplay" || playbackMode === "once") return;
         isPressedB = false;
         accumulatedTimeB += Date.now() - pressStartTimeB;
         const offset = stopAudioChannel("cardB");
@@ -582,10 +637,7 @@
         }
         progressB = Math.min((t / activeMaxTimeB) * 100, 100);
         if (t >= activeMaxTimeB) {
-            if (
-                playbackMode === "autoplay" ||
-                playbackMode === "autoplay_loop"
-            ) {
+            if (playbackMode === "autoplay") {
                 accumulatedTimeB = 0;
                 pressStartTimeB = Date.now();
                 progressB = 0;
@@ -596,6 +648,12 @@
                 resumeAudioContext();
                 playAudioChannel(displayItemB.sound, "cardB", 0);
                 animationFrameIdB = requestAnimationFrame(updateProgressB);
+            } else if (playbackMode === "once") {
+                isPressedB = false;
+                stopAudioChannel("cardB");
+                if (animationFrameIdB) cancelAnimationFrame(animationFrameIdB);
+                progressB = 100;
+                accumulatedTimeB = activeMaxTimeB;
             } else {
                 handlePressEndB();
             }
@@ -616,6 +674,7 @@
 
     // Keyboard support
     async function handleKeyDown(e) {
+        if (e.repeat) return;
         if (cardMode === 1) {
             if (e.code === "Space" || e.code === "KeyA")
                 await handlePressStart();
@@ -992,6 +1051,29 @@
                         <div>
                             <strong>Autoplay</strong><br /><small
                                 >Un click, scorre da solo</small
+                            >
+                        </div>
+                    </button>
+
+                    <button
+                        class="playback-opt-btn"
+                        class:active={playbackMode === "once"}
+                        on:click={() => savePlaybackMode("once")}
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            width="24"
+                            height="24"
+                            ><polygon points="5 3 19 12 5 21 5 3" /></svg
+                        >
+                        <div>
+                            <strong>Singolo Click</strong><br /><small
+                                >Suona una volta sola</small
                             >
                         </div>
                     </button>
