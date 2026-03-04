@@ -1,0 +1,156 @@
+<script>
+    import { createEventDispatcher } from "svelte";
+    const dispatch = createEventDispatcher();
+
+    export let commitId = "8d7a35b";
+    export let buildTimestamp = "2026-03-04 09:49";
+
+    function goBack() {
+        dispatch("back");
+    }
+</script>
+
+<main>
+    <div class="top-nav">
+        <button class="back-button" on:click={goBack} title="Indietro">
+            <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                width="24"
+                height="24"
+            >
+                <line x1="19" y1="12" x2="5" y2="12" />
+                <polyline points="12 19 5 12 12 5" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="info-view">
+        <div class="content">
+            <h1 class="title">Sound Pad</h1>
+            <p class="description">
+                Sound Pad è un'applicazione interattiva per giocare con suoni ed
+                immagini, progettata per l'apprendimento e il divertimento.
+            </p>
+
+            <div class="version-box">
+                <div class="version-row">
+                    <span class="label">Versione Commit</span>
+                    <span class="value">{commitId}</span>
+                </div>
+                <div class="version-row">
+                    <span class="label">Data Build</span>
+                    <span class="value">{buildTimestamp}</span>
+                </div>
+            </div>
+
+            <div class="credit">Sviluppato (Vibecoded) con ❤️</div>
+        </div>
+    </div>
+</main>
+
+<style>
+    main {
+        width: 100vw;
+        height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: white;
+    }
+
+    .info-view {
+        width: 100%;
+        max-width: 600px;
+        padding: 2rem;
+        box-sizing: border-box;
+        position: relative;
+    }
+
+    .top-nav {
+        position: absolute;
+        top: 1rem;
+        left: 1rem;
+        z-index: 100;
+    }
+
+    .back-button {
+        background: rgba(255, 255, 255, 0.9);
+        border: none;
+        border-radius: 15px;
+        width: 3.2rem;
+        height: 3.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #667eea;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s;
+    }
+
+    .back-button:hover {
+        background: white;
+        transform: translateY(-2px);
+    }
+
+    .content {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        padding: 3rem 2rem;
+        border-radius: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        text-align: center;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+    }
+
+    .title {
+        font-size: 2.5rem;
+        margin: 0 0 1.5rem;
+    }
+
+    .description {
+        font-size: 1.2rem;
+        line-height: 1.6;
+        margin-bottom: 2.5rem;
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .version-box {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 1.5rem;
+        border-radius: 20px;
+        font-family: monospace;
+        margin-bottom: 1.5rem;
+    }
+
+    .version-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+
+    .version-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .label {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .value {
+        color: white;
+        font-weight: bold;
+    }
+
+    .credit {
+        font-size: 0.9rem;
+        color: rgba(255, 255, 255, 0.7);
+    }
+</style>

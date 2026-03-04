@@ -81,6 +81,15 @@
     let activeMaxTimeA = null;
     let activeMaxTimeB = null;
 
+    // Cross-category support
+    let overrideHome = null;
+    let overrideA = null;
+    let overrideB = null;
+
+    $: displayItem = indexA === -2 ? overrideHome : items[currentIndex];
+    $: displayItemA = indexA === -1 ? overrideA : items[indexA];
+    $: displayItemB = indexB === -1 ? overrideB : items[indexB];
+
     function checkOrientation() {
         isLandscape = window.innerWidth > window.innerHeight;
     }
@@ -131,6 +140,7 @@
     }
 
     let showSelector = false;
+    let selectorSlot = null; // null = single mode, 'A' or 'B' for dual mode
     let showColorPicker = false;
     let showTimePicker = false;
     let showPlaybackPicker = false;
@@ -253,19 +263,62 @@
     function handleCardSelect(e) {
         const { category, item, index } = e.detail;
         showSelector = false;
-        if (category === (categoryId || categoryKey)) {
-            currentIndex = index;
-            indexA = index;
-            indexB = (index + 1) % items.length;
-            progress = 0;
+
+        const isCurrentCat = category === (categoryId || categoryKey);
+
+        if (selectorSlot === "A") {
+            if (isCurrentCat) {
+                indexA = index;
+                overrideA = null;
+                // Avoid clash
+                if (indexB === indexA && items.length > 1) {
+                    indexB = (indexA + 1) % items.length;
+                    overrideB = null;
+                }
+            } else {
+                indexA = -1;
+                overrideA = item;
+            }
             progressA = 0;
-            progressB = 0;
-            accumulatedTime = 0;
             accumulatedTimeA = 0;
+            // Two-step flow: auto-open for B
+            selectorSlot = "B";
+            showSelector = true;
+            return;
+        } else if (selectorSlot === "B") {
+            if (isCurrentCat) {
+                indexB = index;
+                overrideB = null;
+                // Avoid clash
+                if (indexA === indexB && items.length > 1) {
+                    indexA = (indexB + 1) % items.length;
+                    overrideA = null;
+                }
+            } else {
+                indexB = -1;
+                overrideB = item;
+            }
+            progressB = 0;
             accumulatedTimeB = 0;
         } else {
-            dispatch("jumpTo", { category, item, index });
+            // Single card mode
+            if (isCurrentCat) {
+                currentIndex = index;
+                overrideHome = null;
+                indexA = -2; // Not strictly needed but for internal consistency
+                progress = 0;
+                accumulatedTime = 0;
+            } else {
+                // In single mode we still prefer jumping to the new category
+                dispatch("jumpTo", { category, item, index });
+            }
         }
+        selectorSlot = null;
+    }
+
+    function openSelectorForSlot(slot) {
+        selectorSlot = slot;
+        showSelector = true;
     }
 
     function confirmDeleteCard() {
@@ -276,21 +329,22 @@
     }
 
     // ─── Single card ───────────────────────────────────────────────────────────
-    function handlePressStart() {
-        if (items.length === 0) return;
+    async function handlePressStart() {
+        const currentItem = displayItem;
+        if (!currentItem) return;
 
         // If item has no sound (e.g. story covers), treat press as navigation
-        if (!items[currentIndex].sound) {
+        if (!currentItem.sound) {
             dispatch("jumpTo", {
                 category: categoryId || categoryKey,
-                item: items[currentIndex],
+                item: currentItem,
                 index: currentIndex,
             });
             return;
         }
 
-        if (playbackMode === "autoplay") {
-            // Toggle: click while playing → stop; click while stopped → start
+        if (playbackMode === "autoplay" || playbackMode === "autoplay_loop") {
+            // "autoplay" now defaults to one-shot; toggle logic remains
             if (isPressed) {
                 isPressed = false;
                 stopAudio();
@@ -302,9 +356,13 @@
             isPressed = true;
             pressStartTime = Date.now();
             accumulatedTime = 0;
-            activeMaxTime = resolveMaxTime(items[currentIndex].sound);
             resumeAudioContext();
-            playAudio(items[currentIndex].sound, 0);
+            await playAudio(
+                currentItem.sound,
+                0,
+                playbackMode === "autoplay_loop",
+            );
+            activeMaxTime = resolveMaxTime(currentItem.sound);
             updateProgress();
             return;
         }
@@ -312,12 +370,12 @@
         if (isPressed) return;
         isPressed = true;
         pressStartTime = Date.now();
-        activeMaxTime = resolveMaxTime(items[currentIndex].sound);
         resumeAudioContext();
-        playAudio(
-            items[currentIndex].sound,
+        await playAudio(
+            currentItem.sound,
             playbackMode === "resume" ? audioOffset : 0,
         );
+        activeMaxTime = resolveMaxTime(currentItem.sound);
         updateProgress();
     }
     function handlePressEnd() {
@@ -334,6 +392,7 @@
     }
     function updateProgress() {
         if (!isPressed) return;
+        const currentItem = displayItem;
         const t = accumulatedTime + (Date.now() - pressStartTime);
         if (activeMaxTime === null) {
             animationFrameId = requestAnimationFrame(updateProgress);
@@ -341,18 +400,23 @@
         }
         progress = Math.min((t / activeMaxTime) * 100, 100);
         if (t >= activeMaxTime) {
-            if (playbackMode === "autoplay") {
+            if (
+                playbackMode === "autoplay" ||
+                playbackMode === "autoplay_loop"
+            ) {
                 // Auto-advance without stopping
                 accumulatedTime = 0;
                 pressStartTime = Date.now();
                 progress = 0;
                 stopAudio();
-                if (shuffleMode) currentIndex = getRandomIndex(currentIndex);
-                else currentIndex = (currentIndex + 1) % items.length;
-                audioOffset = 0;
-                activeMaxTime = resolveMaxTime(items[currentIndex].sound);
+                next();
+                activeMaxTime = resolveMaxTime(displayItem.sound);
                 resumeAudioContext();
-                playAudio(items[currentIndex].sound, 0);
+                playAudio(
+                    displayItem.sound,
+                    0,
+                    playbackMode === "autoplay_loop",
+                );
                 animationFrameId = requestAnimationFrame(updateProgress);
             } else {
                 handlePressEnd();
@@ -365,13 +429,15 @@
         progress = 0;
         accumulatedTime = 0;
         audioOffset = 0;
+        overrideHome = null;
         if (shuffleMode) currentIndex = getRandomIndex(currentIndex);
         else currentIndex = (currentIndex + 1) % items.length;
     }
 
     // ─── Dual card A ───────────────────────────────────────────────────────────
-    function handlePressStartA() {
-        if (items.length === 0) return;
+    async function handlePressStartA() {
+        const currentItem = displayItemA;
+        if (!currentItem) return;
 
         if (playbackMode === "autoplay") {
             if (isPressedA) {
@@ -385,9 +451,9 @@
             isPressedA = true;
             pressStartTimeA = Date.now();
             accumulatedTimeA = 0;
-            activeMaxTimeA = resolveMaxTime(items[indexA].sound);
             resumeAudioContext();
-            playAudioChannel(items[indexA].sound, "cardA", 0);
+            await playAudioChannel(currentItem.sound, "cardA", 0);
+            activeMaxTimeA = resolveMaxTime(currentItem.sound);
             updateProgressA();
             return;
         }
@@ -395,13 +461,13 @@
         if (isPressedA) return;
         isPressedA = true;
         pressStartTimeA = Date.now();
-        activeMaxTimeA = resolveMaxTime(items[indexA].sound);
         resumeAudioContext();
-        playAudioChannel(
-            items[indexA].sound,
+        await playAudioChannel(
+            currentItem.sound,
             "cardA",
             playbackMode === "resume" ? audioOffsetA : 0,
         );
+        activeMaxTimeA = resolveMaxTime(currentItem.sound);
         updateProgressA();
     }
     function handlePressEndA() {
@@ -426,17 +492,19 @@
         }
         progressA = Math.min((t / activeMaxTimeA) * 100, 100);
         if (t >= activeMaxTimeA) {
-            if (playbackMode === "autoplay") {
+            if (
+                playbackMode === "autoplay" ||
+                playbackMode === "autoplay_loop"
+            ) {
                 accumulatedTimeA = 0;
                 pressStartTimeA = Date.now();
                 progressA = 0;
                 stopAudioChannel("cardA");
-                if (shuffleMode) indexA = getRandomIndex(indexA);
-                else indexA = (indexA + 1) % items.length;
+                nextA();
                 audioOffsetA = 0;
-                activeMaxTimeA = resolveMaxTime(items[indexA].sound);
+                activeMaxTimeA = resolveMaxTime(displayItemA.sound);
                 resumeAudioContext();
-                playAudioChannel(items[indexA].sound, "cardA", 0);
+                playAudioChannel(displayItemA.sound, "cardA", 0);
                 animationFrameIdA = requestAnimationFrame(updateProgressA);
             } else {
                 handlePressEndA();
@@ -449,13 +517,17 @@
         progressA = 0;
         accumulatedTimeA = 0;
         audioOffsetA = 0;
-        if (shuffleMode) indexA = getRandomIndex(indexA);
-        else indexA = (indexA + 1) % items.length;
+        if (cardMode !== 2) {
+            overrideA = null;
+            if (shuffleMode) indexA = getRandomIndex(indexA);
+            else indexA = (indexA + 1) % items.length;
+        }
     }
 
     // ─── Dual card B ───────────────────────────────────────────────────────────
-    function handlePressStartB() {
-        if (items.length === 0) return;
+    async function handlePressStartB() {
+        const currentItem = displayItemB;
+        if (!currentItem) return;
 
         if (playbackMode === "autoplay") {
             if (isPressedB) {
@@ -469,9 +541,9 @@
             isPressedB = true;
             pressStartTimeB = Date.now();
             accumulatedTimeB = 0;
-            activeMaxTimeB = resolveMaxTime(items[indexB].sound);
             resumeAudioContext();
-            playAudioChannel(items[indexB].sound, "cardB", 0);
+            await playAudioChannel(currentItem.sound, "cardB", 0);
+            activeMaxTimeB = resolveMaxTime(currentItem.sound);
             updateProgressB();
             return;
         }
@@ -479,13 +551,13 @@
         if (isPressedB) return;
         isPressedB = true;
         pressStartTimeB = Date.now();
-        activeMaxTimeB = resolveMaxTime(items[indexB].sound);
         resumeAudioContext();
-        playAudioChannel(
-            items[indexB].sound,
+        await playAudioChannel(
+            currentItem.sound,
             "cardB",
             playbackMode === "resume" ? audioOffsetB : 0,
         );
+        activeMaxTimeB = resolveMaxTime(currentItem.sound);
         updateProgressB();
     }
     function handlePressEndB() {
@@ -510,17 +582,19 @@
         }
         progressB = Math.min((t / activeMaxTimeB) * 100, 100);
         if (t >= activeMaxTimeB) {
-            if (playbackMode === "autoplay") {
+            if (
+                playbackMode === "autoplay" ||
+                playbackMode === "autoplay_loop"
+            ) {
                 accumulatedTimeB = 0;
                 pressStartTimeB = Date.now();
                 progressB = 0;
                 stopAudioChannel("cardB");
-                if (shuffleMode) indexB = getRandomIndex(indexB);
-                else indexB = (indexB + 1) % items.length;
+                nextB();
                 audioOffsetB = 0;
-                activeMaxTimeB = resolveMaxTime(items[indexB].sound);
+                activeMaxTimeB = resolveMaxTime(displayItemB.sound);
                 resumeAudioContext();
-                playAudioChannel(items[indexB].sound, "cardB", 0);
+                playAudioChannel(displayItemB.sound, "cardB", 0);
                 animationFrameIdB = requestAnimationFrame(updateProgressB);
             } else {
                 handlePressEndB();
@@ -533,17 +607,21 @@
         progressB = 0;
         accumulatedTimeB = 0;
         audioOffsetB = 0;
-        if (shuffleMode) indexB = getRandomIndex(indexB);
-        else indexB = (indexB + 1) % items.length;
+        if (cardMode !== 2) {
+            overrideB = null;
+            if (shuffleMode) indexB = getRandomIndex(indexB);
+            else indexB = (indexB + 1) % items.length;
+        }
     }
 
     // Keyboard support
-    function handleKeyDown(e) {
+    async function handleKeyDown(e) {
         if (cardMode === 1) {
-            if (e.code === "Space" || e.code === "KeyA") handlePressStart();
+            if (e.code === "Space" || e.code === "KeyA")
+                await handlePressStart();
         } else {
-            if (e.code === "Space") handlePressStartA();
-            if (e.code === "KeyA") handlePressStartB();
+            if (e.code === "Space") await handlePressStartA();
+            if (e.code === "KeyA") await handlePressStartB();
         }
     }
     function handleKeyUp(e) {
@@ -556,25 +634,25 @@
     }
 
     // Touch events
-    function handleTouchStart(e) {
+    async function handleTouchStart(e) {
         e.preventDefault();
-        handlePressStart();
+        await handlePressStart();
     }
     function handleTouchEnd(e) {
         e.preventDefault();
         handlePressEnd();
     }
-    function handleTouchStartA(e) {
+    async function handleTouchStartA(e) {
         e.preventDefault();
-        handlePressStartA();
+        await handlePressStartA();
     }
     function handleTouchEndA(e) {
         e.preventDefault();
         handlePressEndA();
     }
-    function handleTouchStartB(e) {
+    async function handleTouchStartB(e) {
         e.preventDefault();
-        handlePressStartB();
+        await handlePressStartB();
     }
     function handleTouchEndB(e) {
         e.preventDefault();
@@ -619,32 +697,34 @@
                     <polyline points="12 19 5 12 12 5" />
                 </svg>
             </button>
-            <button
-                class="shuffle-btn"
-                class:active={shuffleMode}
-                on:click={() => dispatch("toggleShuffle", !shuffleMode)}
-                title={shuffleMode ? "Random" : "Sequenziale"}
-                data-tooltip={shuffleMode
-                    ? "Ordine: Casuale"
-                    : "Ordine: Sequenziale"}
-            >
-                <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    width="28"
-                    height="28"
+            {#if cardMode !== 2}
+                <button
+                    class="shuffle-btn"
+                    class:active={shuffleMode}
+                    on:click={() => dispatch("toggleShuffle", !shuffleMode)}
+                    title={shuffleMode ? "Random" : "Sequenziale"}
+                    data-tooltip={shuffleMode
+                        ? "Ordine: Casuale"
+                        : "Ordine: Sequenziale"}
                 >
-                    <polyline points="16 3 21 3 21 8" />
-                    <line x1="4" y1="20" x2="21" y2="3" />
-                    <polyline points="21 16 21 21 16 21" />
-                    <line x1="15" y1="15" x2="21" y2="21" />
-                    <line x1="4" y1="4" x2="9" y2="9" />
-                </svg>
-            </button>
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        width="28"
+                        height="28"
+                    >
+                        <polyline points="16 3 21 3 21 8" />
+                        <line x1="4" y1="20" x2="21" y2="3" />
+                        <polyline points="21 16 21 21 16 21" />
+                        <line x1="15" y1="15" x2="21" y2="21" />
+                        <line x1="4" y1="4" x2="9" y2="9" />
+                    </svg>
+                </button>
+            {/if}
 
             <!-- Palette / Color Picker button -->
             <button
@@ -699,10 +779,11 @@
             <!-- Playback Mode button -->
             <button
                 class="palette-btn"
-                class:playback-autoplay={playbackMode === "autoplay"}
+                class:playback-autoplay={playbackMode === "autoplay" ||
+                    playbackMode === "autoplay_loop"}
                 class:playback-resume={playbackMode === "resume"}
                 on:click={() => (showPlaybackPicker = !showPlaybackPicker)}
-                title="Modalità riproduzione ({playbackMode})"
+                title="Modalità riproduzione"
                 data-tooltip="Modalità riproduzione"
             >
                 <!-- Play-settings icon -->
@@ -728,7 +809,8 @@
             <!-- Card Selector (Icon Only) -->
             <button
                 class="palette-btn"
-                on:click={() => (showSelector = true)}
+                on:click={() =>
+                    openSelectorForSlot(cardMode === 1 ? null : "A")}
                 title="Seleziona card"
                 data-tooltip="Seleziona card"
             >
@@ -903,12 +985,9 @@
                             stroke-linejoin="round"
                             width="24"
                             height="24"
-                            ><polygon points="5 3 19 12 5 21 5 3" /><line
-                                x1="19"
-                                y1="3"
-                                x2="19"
-                                y2="21"
-                            /></svg
+                            ><polyline points="17 1 21 5 17 9" /><path
+                                d="M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4"
+                            /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg
                         >
                         <div>
                             <strong>Autoplay</strong><br /><small
@@ -1084,11 +1163,11 @@
                 on:touchcancel={handleTouchEnd}
             >
                 <img
-                    src={items[currentIndex].image}
-                    alt={items[currentIndex].name}
-                    class:rounded={!items[currentIndex].image?.endsWith(".svg")}
+                    src={displayItem.image}
+                    alt={displayItem.name}
+                    class:rounded={!displayItem.image?.endsWith(".svg")}
                 />
-                <div class="item-name">{items[currentIndex].name}</div>
+                <div class="item-name">{displayItem.name}</div>
             </button>
         {:else}
             <div class="dual-container" class:landscape={isLandscape}>
@@ -1119,13 +1198,13 @@
                         on:touchcancel={handleTouchEndA}
                     >
                         <img
-                            src={items[indexA].image}
-                            alt={items[indexA].name}
-                            class:rounded={!items[indexA].image?.endsWith(
+                            src={displayItemA.image}
+                            alt={displayItemA.name}
+                            class:rounded={!displayItemA.image?.endsWith(
                                 ".svg",
                             )}
                         />
-                        <div class="item-name">{items[indexA].name}</div>
+                        <div class="item-name">{displayItemA.name}</div>
                     </button>
                 </div>
                 <div class="card-wrapper">
@@ -1155,13 +1234,13 @@
                         on:touchcancel={handleTouchEndB}
                     >
                         <img
-                            src={items[indexB].image}
-                            alt={items[indexB].name}
-                            class:rounded={!items[indexB].image?.endsWith(
+                            src={displayItemB.image}
+                            alt={displayItemB.name}
+                            class:rounded={!displayItemB.image?.endsWith(
                                 ".svg",
                             )}
                         />
-                        <div class="item-name">{items[indexB].name}</div>
+                        <div class="item-name">{displayItemB.name}</div>
                     </button>
                 </div>
             </div>
@@ -1171,8 +1250,17 @@
     {#if showSelector}
         <CardSelector
             on:select={handleCardSelect}
-            on:close={() => (showSelector = false)}
+            on:close={() => {
+                showSelector = false;
+                selectorSlot = null;
+            }}
             currentCategory={categoryId || categoryKey}
+            currentItemId={selectorSlot === "A"
+                ? items[indexA]?.id
+                : selectorSlot === "B"
+                  ? items[indexB]?.id
+                  : items[currentIndex]?.id}
+            slot={selectorSlot}
         />
     {/if}
 

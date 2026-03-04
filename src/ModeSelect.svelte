@@ -18,6 +18,10 @@
         }
     }
 
+    function handleInfoClick() {
+        dispatch("openInfo");
+    }
+
     async function handleLogout() {
         await signOut();
         showUserMenu = false;
@@ -28,6 +32,14 @@
     <div class="mode-select">
         <!-- Auth button -->
         <div class="auth-area">
+            <button
+                class="login-text auth-btn"
+                on:click={handleInfoClick}
+                title="Informazioni"
+                data-tooltip="Informazioni"
+            >
+                Info
+            </button>
             <button
                 class="auth-btn"
                 on:click={handleLoginClick}
@@ -40,6 +52,7 @@
                     <span class="login-text">Accedi</span>
                 {/if}
             </button>
+
             {#if showUserMenu && currentUser}
                 <div class="user-menu">
                     <div class="user-email">{currentUser.email}</div>
@@ -158,6 +171,31 @@
         top: 1rem;
         right: 1rem;
         z-index: 100;
+        display: flex;
+        gap: 0.5rem;
+    }
+    .info-icon-btn {
+        background: rgba(255, 255, 255, 0.9);
+        border: none;
+        border-radius: 12px;
+        width: 3.2rem;
+        height: 3.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #667eea;
+        cursor: pointer;
+        font-family: serif;
+        font-style: italic;
+        font-weight: bold;
+        font-size: 1.4rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s;
+    }
+    .info-icon-btn:hover {
+        background: white;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
     }
     .auth-btn {
         background: rgba(255, 255, 255, 0.9);

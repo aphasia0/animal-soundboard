@@ -19,6 +19,7 @@
   import { stories } from "./stories.js";
   import StoryView from "./StoryView.svelte";
   import StorySelect from "./StorySelect.svelte";
+  import InfoView from "./InfoView.svelte";
   import {
     getAnimalName,
     getJobName,
@@ -30,6 +31,7 @@
   let currentView = "modeSelect";
   let selectedCategory = null;
   let selectedUserCategory = null;
+  let previousView = "modeSelect";
 
   let selectedCardMode = 1;
   let settings;
@@ -173,6 +175,8 @@
       currentView = "people";
     } else if (path === "/sentences") {
       currentView = "sentences";
+    } else if (path === "/info") {
+      currentView = "info";
     } else {
       currentView = "modeSelect";
     }
@@ -193,10 +197,12 @@
     else if (view === "sentences") path = "/sentences";
     else if (view === "userCategory" && userCat)
       path = `/category/${userCat.id}`;
+    else if (view === "info") path = "/info";
 
     if (window.location.pathname !== path) {
       window.history.pushState({}, "", path);
     }
+    if (currentView !== "info") previousView = currentView;
     currentView = view;
     if (userCat) selectedUserCategory = userCat;
   }
@@ -259,6 +265,10 @@
     showAuthModal = true;
   }
 
+  function handleOpenInfo() {
+    navigate("info");
+  }
+
   function handleAddCategory() {
     showAddCategoryModal = true;
   }
@@ -299,7 +309,10 @@
     {currentUser}
     on:select={handleModeSelect}
     on:showAuth={handleShowAuth}
+    on:openInfo={handleOpenInfo}
   />
+{:else if currentView === "info"}
+  <InfoView on:back={() => navigate(previousView)} />
 {:else if currentView === "home"}
   <Home
     on:select={handleCategorySelect}

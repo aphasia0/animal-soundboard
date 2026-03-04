@@ -17,6 +17,7 @@
 
     export let currentCategory = "animals";
     export let currentItemId = null;
+    export let slot = null; // 'A', 'B', or null
 
     const dispatch = createEventDispatcher();
     const locale = "it";
@@ -119,7 +120,7 @@
 <div class="overlay" on:click|self={close}>
     <div class="panel">
         <div class="panel-header">
-            <h2>Seleziona Card</h2>
+            <h2>{slot ? `Seleziona Card ${slot}` : "Seleziona Card"}</h2>
             <button class="close-btn" on:click={close}>✕</button>
         </div>
 
