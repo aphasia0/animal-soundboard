@@ -679,16 +679,16 @@
             if (e.code === "Space" || e.code === "KeyA")
                 await handlePressStart();
         } else {
-            if (e.code === "Space") await handlePressStartA();
-            if (e.code === "KeyA") await handlePressStartB();
+            if (e.code === "KeyA") await handlePressStartA();
+            if (e.code === "Space") await handlePressStartB();
         }
     }
     function handleKeyUp(e) {
         if (cardMode === 1) {
             if (e.code === "Space" || e.code === "KeyA") handlePressEnd();
         } else {
-            if (e.code === "Space") handlePressEndA();
-            if (e.code === "KeyA") handlePressEndB();
+            if (e.code === "KeyA") handlePressEndA();
+            if (e.code === "Space") handlePressEndB();
         }
     }
 
