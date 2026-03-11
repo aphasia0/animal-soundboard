@@ -5,7 +5,7 @@ const STORAGE_KEY = 'user_settings';
 
 const defaultSettings = {
     cardMode: null,
-    shuffleMode: true,
+    cardNavMode: 'shuffle',       // 'shuffle' | 'sequential' | 'locked'
     primaryColor: '#39ff14',
     secondaryColor: '#ff0000',
     maxTimeMs: 'auto',              // 'auto' uses sound duration
@@ -50,7 +50,7 @@ function createSettingsStore() {
                 if (data) {
                     const settings = {
                         cardMode: data.card_mode,
-                        shuffleMode: data.shuffle_mode,
+                        cardNavMode: data.card_nav_mode || 'shuffle',
                         primaryColor: data.primary_color || defaultSettings.primaryColor,
                         secondaryColor: data.secondary_color || defaultSettings.secondaryColor,
                         maxTimeMs: data.max_time_ms !== undefined ? data.max_time_ms : defaultSettings.maxTimeMs,
@@ -82,7 +82,7 @@ function createSettingsStore() {
                     const { error } = await supabase.from('user_confs').upsert({
                         user_id: userId,
                         card_mode: updated.cardMode,
-                        shuffle_mode: updated.shuffleMode,
+                        card_nav_mode: updated.cardNavMode,
                         primary_color: updated.primaryColor,
                         secondary_color: updated.secondaryColor,
                         max_time_ms: updated.maxTimeMs,

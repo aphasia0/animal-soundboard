@@ -14,10 +14,13 @@
     const dispatch = createEventDispatcher();
 
     let currentUser;
-    user.subscribe((v) => {
-        currentUser = v;
-        loadUserCategories();
-    });
+    let userCategories = [];
+
+    // Category edit/delete state
+    let showEditCatModal = false;
+    let catToEdit = null;
+    let showDeleteCatConfirm = false;
+    let catToDelete = null;
 
     const categories = [
         {
@@ -57,13 +60,10 @@
         },
     ];
 
-    let userCategories = [];
-
-    // Category edit/delete state
-    let showEditCatModal = false;
-    let catToEdit = null;
-    let showDeleteCatConfirm = false;
-    let catToDelete = null;
+    user.subscribe((v) => {
+        currentUser = v;
+        loadUserCategories();
+    });
 
     function openEditCategory(cat, e) {
         e.stopPropagation();

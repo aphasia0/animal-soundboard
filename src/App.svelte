@@ -326,10 +326,10 @@
     items={animalsItems}
     categoryKey="animals"
     cardMode={selectedCardMode}
-    shuffleMode={settings.shuffleMode}
+    cardNavMode={settings.cardNavMode}
     on:back={handleBack}
-    on:toggleShuffle={(e) =>
-      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "work"}
@@ -337,10 +337,10 @@
     items={jobsItems}
     categoryKey="work"
     cardMode={selectedCardMode}
-    shuffleMode={settings.shuffleMode}
+    cardNavMode={settings.cardNavMode}
     on:back={handleBack}
-    on:toggleShuffle={(e) =>
-      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "music"}
@@ -348,10 +348,10 @@
     items={musicItems}
     categoryKey="music"
     cardMode={selectedCardMode}
-    shuffleMode={settings.shuffleMode}
+    cardNavMode={settings.cardNavMode}
     on:back={handleBack}
-    on:toggleShuffle={(e) =>
-      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "people"}
@@ -359,10 +359,10 @@
     items={peopleItems}
     categoryKey="people"
     cardMode={selectedCardMode}
-    shuffleMode={settings.shuffleMode}
+    cardNavMode={settings.cardNavMode}
     on:back={handleBack}
-    on:toggleShuffle={(e) =>
-      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "sentences"}
@@ -370,10 +370,10 @@
     items={sentencesItems}
     categoryKey="sentences"
     cardMode={selectedCardMode}
-    shuffleMode={settings.shuffleMode}
+    cardNavMode={settings.cardNavMode}
     on:back={handleBack}
-    on:toggleShuffle={(e) =>
-      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "stories"}
@@ -398,13 +398,13 @@
     isUserCategory={true}
     loading={loadingUserCards}
     cardMode={selectedCardMode}
-    shuffleMode={settings.shuffleMode}
+    cardNavMode={settings.cardNavMode}
     on:back={handleBack}
     on:addCard={handleAddCard}
     on:deleteCard={handleDeleteCard}
     on:cardEdited={handleCardEdited}
-    on:toggleShuffle={(e) =>
-      settingsStore.updateSettings({ shuffleMode: e.detail }, currentUser?.id)}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
   />
 {/if}

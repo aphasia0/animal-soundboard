@@ -21,7 +21,7 @@
     export let categoryId = null; // For custom categories
     export let categoryKey = ""; // For native categories (animals, etc.)
     export let cardMode = 1;
-    export let shuffleMode = true;
+    export let cardNavMode = "shuffle"; // 'shuffle' | 'sequential' | 'locked'
     export let isUserCategory = false;
     export let loading = false;
 
@@ -66,8 +66,15 @@
     let activeMaxTime = null;
 
     // Dual card state
-    let indexA = 0,
-        indexB = 1;
+    let indexA = 0;
+    let indexB = 1;
+
+    // Safety check for indices when items change
+    $: if (items.length > 0) {
+        if (indexA >= items.length) indexA = 0;
+        if (indexB >= items.length) indexB = Math.max(0, items.length - 1);
+        if (currentIndex >= items.length) currentIndex = 0;
+    }
     let progressA = 0,
         progressB = 0,
         accumulatedTimeA = 0,
@@ -81,12 +88,10 @@
     let activeMaxTimeA = null;
     let activeMaxTimeB = null;
 
-    // Cross-category support
-    let overrideHome = null;
     let overrideA = null;
     let overrideB = null;
 
-    $: displayItem = indexA === -2 ? overrideHome : items[currentIndex];
+    $: displayItem = items[currentIndex];
     $: displayItemA = indexA === -1 ? overrideA : items[indexA];
     $: displayItemB = indexB === -1 ? overrideB : items[indexB];
 
@@ -142,9 +147,7 @@
     let showSelector = false;
     let selectorSlot = null; // null = single mode, 'A' or 'B' for dual mode
     let showColorPicker = false;
-    let showTimePicker = false;
     let showPlaybackPicker = false;
-    let customTimeInput = "";
 
     // --- State variables (declared BEFORE subscribe to avoid TDZ) ---
     let primaryColor = "#39ff14";
@@ -178,8 +181,10 @@
         if (playbackMode === "autoplay") {
             stopAllAutoplay();
         }
+        // Singolo Click always uses sound duration — force maxTimeMs to auto
+        const extra = mode === "once" ? { maxTimeMs: "auto" } : {};
         await settingsStore.updateSettings(
-            { playbackMode: mode },
+            { playbackMode: mode, ...extra },
             currentUser?.id,
         );
         showPlaybackPicker = false;
@@ -209,25 +214,6 @@
         }
     }
 
-    const TIME_PRESETS = [
-        { label: "3s", value: 3000 },
-        { label: "5s", value: 5000 },
-        { label: "10s", value: 10000 },
-        { label: "30s", value: 30000 },
-        { label: "\u221e", value: null },
-        { label: "Auto", value: "auto" },
-    ];
-
-    async function saveTime(ms) {
-        await settingsStore.updateSettings({ maxTimeMs: ms }, currentUser?.id);
-        showTimePicker = false;
-        customTimeInput = "";
-    }
-    async function saveCustomTime() {
-        const secs = parseFloat(customTimeInput);
-        if (!secs || secs <= 0) return;
-        await saveTime(Math.round(secs * 1000));
-    }
     function timeLabel(ms) {
         if (ms === "auto") return "Auto";
         if (ms === null) return "\u221e";
@@ -304,8 +290,7 @@
             // Single card mode
             if (isCurrentCat) {
                 currentIndex = index;
-                overrideHome = null;
-                indexA = -2; // Not strictly needed but for internal consistency
+                indexA = 0; // Ensure we are not in a dual-mode state
                 progress = 0;
                 accumulatedTime = 0;
             } else {
@@ -443,8 +428,13 @@
         progress = 0;
         accumulatedTime = 0;
         audioOffset = 0;
-        overrideHome = null;
-        if (shuffleMode) currentIndex = getRandomIndex(currentIndex);
+        if (cardNavMode === "locked") {
+            // locked: stay on same card, just reset progress
+            return;
+        }
+
+        if (cardNavMode === "shuffle")
+            currentIndex = getRandomIndex(currentIndex);
         else currentIndex = (currentIndex + 1) % items.length;
     }
 
@@ -553,11 +543,10 @@
         progressA = 0;
         accumulatedTimeA = 0;
         audioOffsetA = 0;
-        if (cardMode !== 2) {
-            overrideA = null;
-            if (shuffleMode) indexA = getRandomIndex(indexA);
-            else indexA = (indexA + 1) % items.length;
-        }
+        if (cardNavMode === "locked") return; // stay on same card
+        overrideA = null;
+        if (cardNavMode === "shuffle") indexA = getRandomIndex(indexA);
+        else indexA = (indexA + 1) % items.length;
     }
 
     // ─── Dual card B ───────────────────────────────────────────────────────────
@@ -665,11 +654,10 @@
         progressB = 0;
         accumulatedTimeB = 0;
         audioOffsetB = 0;
-        if (cardMode !== 2) {
-            overrideB = null;
-            if (shuffleMode) indexB = getRandomIndex(indexB);
-            else indexB = (indexB + 1) % items.length;
-        }
+        if (cardNavMode === "locked") return; // stay on same card
+        overrideB = null;
+        if (cardNavMode === "shuffle") indexB = getRandomIndex(indexB);
+        else indexB = (indexB + 1) % items.length;
     }
 
     // Keyboard support
@@ -757,31 +745,88 @@
                 </svg>
             </button>
             {#if cardMode !== 2}
+                <!-- 3-state nav button: shuffle → sequential → locked → shuffle -->
                 <button
                     class="shuffle-btn"
-                    class:active={shuffleMode}
-                    on:click={() => dispatch("toggleShuffle", !shuffleMode)}
-                    title={shuffleMode ? "Random" : "Sequenziale"}
-                    data-tooltip={shuffleMode
+                    class:nav-sequential={cardNavMode === "sequential"}
+                    class:nav-locked={cardNavMode === "locked"}
+                    class:active={cardNavMode !== "sequential"}
+                    on:click={() => {
+                        const next =
+                            cardNavMode === "shuffle"
+                                ? "sequential"
+                                : cardNavMode === "sequential"
+                                  ? "locked"
+                                  : "shuffle";
+                        dispatch("setNavMode", next);
+                    }}
+                    title={cardNavMode === "shuffle"
+                        ? "Casuale"
+                        : cardNavMode === "sequential"
+                          ? "Sequenziale"
+                          : "Bloccato"}
+                    data-tooltip={cardNavMode === "shuffle"
                         ? "Ordine: Casuale"
-                        : "Ordine: Sequenziale"}
+                        : cardNavMode === "sequential"
+                          ? "Ordine: Sequenziale"
+                          : "Ordine: Bloccato"}
                 >
-                    <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        width="28"
-                        height="28"
-                    >
-                        <polyline points="16 3 21 3 21 8" />
-                        <line x1="4" y1="20" x2="21" y2="3" />
-                        <polyline points="21 16 21 21 16 21" />
-                        <line x1="15" y1="15" x2="21" y2="21" />
-                        <line x1="4" y1="4" x2="9" y2="9" />
-                    </svg>
+                    {#if cardNavMode === "shuffle"}
+                        <!-- Shuffle icon -->
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            width="28"
+                            height="28"
+                        >
+                            <polyline points="16 3 21 3 21 8" />
+                            <line x1="4" y1="20" x2="21" y2="3" />
+                            <polyline points="21 16 21 21 16 21" />
+                            <line x1="15" y1="15" x2="21" y2="21" />
+                            <line x1="4" y1="4" x2="9" y2="9" />
+                        </svg>
+                    {:else if cardNavMode === "sequential"}
+                        <!-- Right-arrow icon (sequential) -->
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            width="28"
+                            height="28"
+                        >
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                        </svg>
+                    {:else}
+                        <!-- Padlock icon (locked) -->
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            width="28"
+                            height="28"
+                        >
+                            <rect
+                                x="3"
+                                y="11"
+                                width="18"
+                                height="11"
+                                rx="2"
+                                ry="2"
+                            />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                    {/if}
                 </button>
             {/if}
 
@@ -812,35 +857,13 @@
                 </svg>
             </button>
 
-            <!-- Clock / Time Picker button -->
-            <button
-                class="palette-btn"
-                class:time-active={maxTime === null}
-                on:click={() => (showTimePicker = !showTimePicker)}
-                title="Durata ({timeLabel(maxTime)})"
-                data-tooltip="Durata ({timeLabel(maxTime)})"
-            >
-                <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    width="26"
-                    height="26"
-                >
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                </svg>
-            </button>
-
             <!-- Playback Mode button -->
             <button
                 class="palette-btn"
                 class:playback-autoplay={playbackMode === "autoplay" ||
                     playbackMode === "autoplay_loop"}
                 class:playback-resume={playbackMode === "resume"}
+                class:playback-restart={playbackMode === "restart"}
                 on:click={() => (showPlaybackPicker = !showPlaybackPicker)}
                 title="Modalità riproduzione"
                 data-tooltip="Modalità riproduzione"
@@ -934,51 +957,33 @@
             </div>
         {/if}
 
-        {#if showTimePicker}
-            <div class="color-picker-popup">
-                <div class="color-picker-title">⏱ Durata Gioco</div>
-                <div class="time-presets">
-                    {#each TIME_PRESETS as preset}
-                        <button
-                            class="time-preset-btn"
-                            class:active={maxTime === preset.value}
-                            on:click={() => saveTime(preset.value)}
-                        >
-                            {preset.label}
-                        </button>
-                    {/each}
-                </div>
-                <div class="color-row" style="margin-top:0.5rem">
-                    <label for="custom-time" style="white-space:nowrap"
-                        >Personalizzato (s)</label
-                    >
-                    <input
-                        id="custom-time"
-                        type="number"
-                        min="1"
-                        max="300"
-                        placeholder="es. 15"
-                        bind:value={customTimeInput}
-                        class="custom-time-input"
-                    />
-                    <button
-                        class="color-save"
-                        style="width:auto;padding:0.4rem 0.8rem"
-                        on:click={saveCustomTime}>OK</button
-                    >
-                </div>
-                <button
-                    class="color-cancel"
-                    style="width:100%;margin-top:0.5rem"
-                    on:click={() => (showTimePicker = false)}>Annulla</button
-                >
-            </div>
-        {/if}
-
         {#if showPlaybackPicker}
-            <div class="color-picker-popup" style="min-width:280px">
-                <div class="color-picker-title">▶ Modalità Riproduzione</div>
+            <div class="color-picker-popup" style="min-width:300px">
+                <div class="color-picker-title">▶ Modalità Gioco</div>
                 <div class="playback-options">
+                    <button
+                        class="playback-opt-btn"
+                        class:active={playbackMode === "once"}
+                        on:click={() => savePlaybackMode("once")}
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            width="24"
+                            height="24"
+                            ><polygon points="5 3 19 12 5 21 5 3" /></svg
+                        >
+                        <div>
+                            <strong>Singolo Click</strong><br /><small
+                                >Suona una volta sola</small
+                            >
+                        </div>
+                    </button>
+
                     <button
                         class="playback-opt-btn"
                         class:active={playbackMode === "restart"}
@@ -1054,30 +1059,8 @@
                             >
                         </div>
                     </button>
-
-                    <button
-                        class="playback-opt-btn"
-                        class:active={playbackMode === "once"}
-                        on:click={() => savePlaybackMode("once")}
-                    >
-                        <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            width="24"
-                            height="24"
-                            ><polygon points="5 3 19 12 5 21 5 3" /></svg
-                        >
-                        <div>
-                            <strong>Singolo Click</strong><br /><small
-                                >Suona una volta sola</small
-                            >
-                        </div>
-                    </button>
                 </div>
+
                 <button
                     class="color-cancel"
                     style="width:100%;margin-top:0.75rem"
@@ -1432,6 +1415,16 @@
         background: rgba(255, 255, 255, 0.9);
         opacity: 1;
     }
+    .shuffle-btn.nav-sequential {
+        background: rgba(255, 255, 255, 0.9);
+        color: #f59e0b; /* amber for sequential */
+        opacity: 1;
+    }
+    .shuffle-btn.nav-locked {
+        background: rgba(255, 255, 255, 0.9);
+        color: #ef4444; /* red for locked */
+        opacity: 1;
+    }
     /* Palette button — sits next to shuffle inside .center-btns */
     .palette-btn {
         background: rgba(255, 255, 255, 0.9);
@@ -1449,9 +1442,9 @@
         opacity: 1;
     }
     .palette-btn:hover {
-        background: white;
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+        filter: brightness(1.08);
     }
     /* Color picker popup */
     .color-picker-popup {
@@ -1538,48 +1531,7 @@
     .color-save:hover {
         background: #5a6fd6;
     }
-    /* Time Picker */
-    .time-presets {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-    .time-preset-btn {
-        flex: 1;
-        min-width: 50px;
-        padding: 0.5rem 0.4rem;
-        border: 2px solid #e2e8f0;
-        border-radius: 12px;
-        background: #f8fafc;
-        color: #334155;
-        font-size: 1rem;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.18s;
-    }
-    .time-preset-btn:hover {
-        border-color: #667eea;
-        background: #eef2ff;
-    }
-    .time-preset-btn.active {
-        background: #667eea;
-        border-color: #667eea;
-        color: white;
-    }
-    .custom-time-input {
-        width: 70px;
-        padding: 0.4rem 0.5rem;
-        border: 2px solid #e2e8f0;
-        border-radius: 10px;
-        font-size: 0.95rem;
-        text-align: center;
-    }
-    /* Highlight clock button when infinite mode is on */
-    .palette-btn.time-active {
-        background: #667eea;
-        color: white;
-    }
+
     /* Playback button states */
     .palette-btn.playback-autoplay {
         background: #10b981; /* green — actively running story mode */
@@ -1587,6 +1539,10 @@
     }
     .palette-btn.playback-resume {
         background: #f59e0b; /* amber — resume/pause mode */
+        color: white;
+    }
+    .palette-btn.playback-restart {
+        background: #d99ea1; /* yellow/amber — restart mode */
         color: white;
     }
     /* Playback mode popup options */
@@ -1650,11 +1606,7 @@
         animation: infinitePulse 2s ease infinite;
         box-shadow: none;
     }
-    .palette-btn:hover {
-        background: white;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-    }
+
     .shuffle-btn:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
