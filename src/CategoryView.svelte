@@ -21,7 +21,7 @@
     export let categoryId = null; // For custom categories
     export let categoryKey = ""; // For native categories (animals, etc.)
     export let cardMode = 1;
-    export let cardNavMode = "shuffle"; // 'shuffle' | 'sequential' | 'locked'
+    export let cardNavMode = "shuffle"; // 'shuffle' | 'linear' | 'locked'
     export let isUserCategory = false;
     export let loading = false;
 
@@ -188,6 +188,13 @@
             currentUser?.id,
         );
         showPlaybackPicker = false;
+    }
+
+    async function saveMaxTime(time) {
+        await settingsStore.updateSettings(
+            { maxTimeMs: time },
+            currentUser?.id,
+        );
     }
 
     function stopAllAutoplay() {
@@ -411,12 +418,15 @@
                 playAudio(displayItem.sound, 0);
                 animationFrameId = requestAnimationFrame(updateProgress);
             } else if (playbackMode === "once") {
-                // One-shot playback completed
+                // One-shot playback completed - advance to next card if not locked
                 isPressed = false;
                 stopAudio();
                 if (animationFrameId) cancelAnimationFrame(animationFrameId);
                 progress = 100;
                 accumulatedTime = activeMaxTime;
+                if (cardNavMode !== "locked") {
+                    next();
+                }
             } else {
                 handlePressEnd();
             }
@@ -532,6 +542,9 @@
                 if (animationFrameIdA) cancelAnimationFrame(animationFrameIdA);
                 progressA = 100;
                 accumulatedTimeA = activeMaxTimeA;
+                if (cardNavMode !== "locked") {
+                    nextA();
+                }
             } else {
                 handlePressEndA();
             }
@@ -643,6 +656,9 @@
                 if (animationFrameIdB) cancelAnimationFrame(animationFrameIdB);
                 progressB = 100;
                 accumulatedTimeB = activeMaxTimeB;
+                if (cardNavMode !== "locked") {
+                    nextB();
+                }
             } else {
                 handlePressEndB();
             }
@@ -744,31 +760,30 @@
                     <polyline points="12 19 5 12 12 5" />
                 </svg>
             </button>
-            {#if cardMode !== 2}
-                <!-- 3-state nav button: shuffle → sequential → locked → shuffle -->
-                <button
+            <!-- 3-state nav button: shuffle → linear → locked → shuffle -->
+            <button
                     class="shuffle-btn"
-                    class:nav-sequential={cardNavMode === "sequential"}
+                    class:nav-linear={cardNavMode === "linear"}
                     class:nav-locked={cardNavMode === "locked"}
-                    class:active={cardNavMode !== "sequential"}
+                    class:active={cardNavMode !== "linear"}
                     on:click={() => {
                         const next =
                             cardNavMode === "shuffle"
-                                ? "sequential"
-                                : cardNavMode === "sequential"
+                                ? "linear"
+                                : cardNavMode === "linear"
                                   ? "locked"
                                   : "shuffle";
                         dispatch("setNavMode", next);
                     }}
                     title={cardNavMode === "shuffle"
                         ? "Casuale"
-                        : cardNavMode === "sequential"
-                          ? "Sequenziale"
+                        : cardNavMode === "linear"
+                          ? "Lineare"
                           : "Bloccato"}
                     data-tooltip={cardNavMode === "shuffle"
                         ? "Ordine: Casuale"
-                        : cardNavMode === "sequential"
-                          ? "Ordine: Sequenziale"
+                        : cardNavMode === "linear"
+                          ? "Ordine: Lineare"
                           : "Ordine: Bloccato"}
                 >
                     {#if cardNavMode === "shuffle"}
@@ -789,8 +804,8 @@
                             <line x1="15" y1="15" x2="21" y2="21" />
                             <line x1="4" y1="4" x2="9" y2="9" />
                         </svg>
-                    {:else if cardNavMode === "sequential"}
-                        <!-- Right-arrow icon (sequential) -->
+                    {:else if cardNavMode === "linear"}
+                        <!-- Right-arrow icon (linear) -->
                         <svg
                             viewBox="0 0 24 24"
                             fill="none"
@@ -828,7 +843,6 @@
                         </svg>
                     {/if}
                 </button>
-            {/if}
 
             <!-- Palette / Color Picker button -->
             <button
@@ -1059,6 +1073,41 @@
                             >
                         </div>
                     </button>
+                </div>
+
+                <div class="time-options">
+                    <div class="time-label">Tempo max:</div>
+                    <div class="time-buttons">
+                        {#if playbackMode === "once"}
+                            <button class="time-btn active">auto</button>
+                        {:else}
+                            <button
+                                class="time-btn"
+                                class:active={maxTime === 3000}
+                                on:click={() => saveMaxTime(3000)}>3s</button
+                            >
+                            <button
+                                class="time-btn"
+                                class:active={maxTime === 5000}
+                                on:click={() => saveMaxTime(5000)}>5s</button
+                            >
+                            <button
+                                class="time-btn"
+                                class:active={maxTime === 10000}
+                                on:click={() => saveMaxTime(10000)}>10s</button
+                            >
+                            <button
+                                class="time-btn"
+                                class:active={maxTime === 30000}
+                                on:click={() => saveMaxTime(30000)}>30s</button
+                            >
+                            <button
+                                class="time-btn"
+                                class:active={maxTime === "auto"}
+                                on:click={() => saveMaxTime("auto")}>auto</button
+                            >
+                        {/if}
+                    </div>
                 </div>
 
                 <button
@@ -1415,9 +1464,9 @@
         background: rgba(255, 255, 255, 0.9);
         opacity: 1;
     }
-    .shuffle-btn.nav-sequential {
+    .shuffle-btn.nav-linear {
         background: rgba(255, 255, 255, 0.9);
-        color: #f59e0b; /* amber for sequential */
+        color: #f59e0b; /* amber for linear */
         opacity: 1;
     }
     .shuffle-btn.nav-locked {
@@ -1583,6 +1632,44 @@
     }
     .playback-opt-btn.active small {
         opacity: 0.9;
+    }
+    .time-options {
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #e2e8f0;
+    }
+    .time-label {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+    .time-buttons {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+    }
+    .time-btn {
+        flex: 1;
+        min-width: 50px;
+        padding: 0.5rem 0.25rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.18s;
+    }
+    .time-btn:hover {
+        border-color: #667eea;
+        background: #eef2ff;
+    }
+    .time-btn.active {
+        border-color: #667eea;
+        background: #667eea;
+        color: white;
     }
     /* Infinite mode: pulsing progress bar */
     @keyframes infinitePulse {

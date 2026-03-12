@@ -5,7 +5,7 @@ const STORAGE_KEY = 'user_settings';
 
 const defaultSettings = {
     cardMode: null,
-    cardNavMode: 'shuffle',       // 'shuffle' | 'sequential' | 'locked'
+    cardNavMode: 'linear',       // 'shuffle' | 'linear' | 'locked'
     primaryColor: '#39ff14',
     secondaryColor: '#ff0000',
     maxTimeMs: 'auto',              // 'auto' uses sound duration
@@ -50,7 +50,7 @@ function createSettingsStore() {
                 if (data) {
                     const settings = {
                         cardMode: data.card_mode,
-                        cardNavMode: data.card_nav_mode || 'shuffle',
+                        cardNavMode: data.card_nav_mode || 'linear',
                         primaryColor: data.primary_color || defaultSettings.primaryColor,
                         secondaryColor: data.secondary_color || defaultSettings.secondaryColor,
                         maxTimeMs: data.max_time_ms !== undefined ? data.max_time_ms : defaultSettings.maxTimeMs,
