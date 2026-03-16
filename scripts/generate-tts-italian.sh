@@ -32,14 +32,17 @@ generate_sound() {
     local output_file="${SOUNDS_DIR}/${key}.aiff"
     local wav_file="${SOUNDS_DIR}/${key}.wav"
     
-    # Use 'say' to generate audio (AIFF format)
     say -v "$VOICE" "$italian_name" -o "$output_file"
     
-    # Convert AIFF to WAV and pad/trim to exactly 5 seconds using ffmpeg
-    if command -v ffmpeg &> /dev/null; then
-        ffmpeg -i "$output_file" -af "apad=whole_dur=5" -t 5 -y "$wav_file" 2>/dev/null
+    if command -v ffmpeg &> /dev/null && command -v ffprobe &> /dev/null; then
+        local duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$output_file" 2>/dev/null)
+        local dur_int=${duration%.*}
+        if [ -z "$dur_int" ] || [ "$dur_int" -lt 1 ]; then
+            dur_int=1
+        fi
+        ffmpeg -i "$output_file" -af "apad=whole_dur=${dur_int}" -t "$dur_int" -y "$wav_file" 2>/dev/null
         rm "$output_file"
-        echo "✓ Creato ${key}.wav (${italian_name}, 5 secondi)"
+        echo "✓ Creato ${key}.wav (${italian_name}, ${dur_int}s)"
     else
         afconvert -f WAVE -d LEI16 "$output_file" "$wav_file"
         rm "$output_file"

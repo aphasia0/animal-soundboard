@@ -1854,25 +1854,26 @@
         transform: scale(0.93);
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
     }
-    /* Always perfectly circular images — works for SVG animals and uploaded user photos */
+    /* Images for animals, vehicles, etc. */
     .item-button img {
-        width: min(50vmin, 220px);
-        height: min(50vmin, 220px);
+        width: min(80vmin, 400px);
+        height: min(80vmin, 400px);
         object-fit: contain;
         pointer-events: none;
         margin-bottom: 2rem;
         flex-shrink: 0;
+        border-radius: 30px;
     }
-    /* Only round custom (non-SVG) uploaded photos */
+    /* Round corners for custom uploaded photos */
     .item-button img.rounded {
-        border-radius: 50%;
+        border-radius: 30px;
         object-fit: cover;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
     }
     .item-name {
         position: absolute;
         bottom: 2rem;
-        font-size: 3rem;
+        font-size: 4rem;
         font-weight: bold;
         color: #667eea;
         text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);

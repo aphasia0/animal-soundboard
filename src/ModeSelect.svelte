@@ -174,29 +174,6 @@
         display: flex;
         gap: 0.5rem;
     }
-    .info-icon-btn {
-        background: rgba(255, 255, 255, 0.9);
-        border: none;
-        border-radius: 12px;
-        width: 3.2rem;
-        height: 3.2rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #667eea;
-        cursor: pointer;
-        font-family: serif;
-        font-style: italic;
-        font-weight: bold;
-        font-size: 1.4rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        transition: all 0.2s;
-    }
-    .info-icon-btn:hover {
-        background: white;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-    }
     .auth-btn {
         background: rgba(255, 255, 255, 0.9);
         border: none;

@@ -66,6 +66,64 @@ const jobTranslations = {
     'mechanic': 'Meccanico'
 };
 
+// Vehicle translations
+const vehicleTranslations = {
+    'automobile': 'Automobile',
+    'motocicletta': 'Motocicletta',
+    'bicicletta': 'Bicicletta',
+    'autobus': 'Autobus',
+    'tram': 'Tram',
+    'metropolitana': 'Metropolitana',
+    'treno': 'Treno',
+    'aereo': 'Aereo',
+    'elicottero': 'Elicottero',
+    'nave': 'Nave',
+    'barca': 'Barca',
+    'yacht': 'Yacht',
+    'camper': 'Camper',
+    'pullman': 'Pullman',
+    'taxi': 'Taxi',
+    'ambulanza': 'Ambulanza',
+    'pompieri': 'Pompieri',
+    'polizia': 'Polizia',
+    'camion': 'Camion',
+    'trattore': 'Trattore',
+    'funivia': 'Funivia',
+    'seggiovia': 'Seggiovia',
+    'mongolfiera': 'Mongolfiera',
+    'dirigibile': 'Dirigibile',
+    'vaporetto': 'Vaporetto',
+    'traghetto': 'Traghetto',
+    'scooter': 'Scooter',
+    'kayak': 'Kayak',
+    'catamarano': 'Catamarano',
+    'ruspa': 'Ruspa'
+};
+
+export function getVehicleName(key, locale = 'it') {
+    if (locale === 'it') {
+        return vehicleTranslations[key] || key;
+    }
+    return key;
+}
+
+// Game translations
+const gameTranslations = {
+    'ruota': 'Ruota',
+    'trottola': 'Trottola',
+    'tamburello': 'Tamburello',
+    'macchina': 'Macchina',
+    'pianoforte': 'Pianoforte',
+    'uccellino': 'Uccellino'
+};
+
+export function getGameName(key, locale = 'it') {
+    if (locale === 'it') {
+        return gameTranslations[key] || key;
+    }
+    return key;
+}
+
 export function getAnimalName(key, locale = 'it') {
     if (locale === 'it') {
         return animalTranslations[key] || key;

@@ -6,12 +6,16 @@
     import { jobs } from "./jobs.js";
     import { music } from "./music.js";
     import { people } from "./people.js";
+    import { vehicles } from "./vehicles.js";
+    import { games } from "./games.js";
     import { sentences } from "./sentences.js";
     import {
         getAnimalName,
         getJobName,
         getMusicName,
         getPersonName,
+        getVehicleName,
+        getGameName,
         getSentenceName,
     } from "./i18n.js";
 
@@ -50,6 +54,20 @@
             emoji: "👨‍👩‍👧‍👦",
             items: people,
             getName: (item) => getPersonName(item.key, locale),
+        },
+        {
+            id: "vehicles",
+            label: "Mezzi di trasporto",
+            emoji: "🚗",
+            items: vehicles,
+            getName: (item) => getVehicleName(item.key, locale),
+        },
+        {
+            id: "games",
+            label: "Giochi",
+            emoji: "🎮",
+            items: games,
+            getName: (item) => getGameName(item.key, locale),
         },
         {
             id: "sentences",

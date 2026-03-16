@@ -15,6 +15,8 @@
   import { jobs } from "./jobs.js";
   import { music } from "./music.js";
   import { people } from "./people.js";
+  import { vehicles } from "./vehicles.js";
+  import { games } from "./games.js";
   import { sentences } from "./sentences.js";
   import { stories } from "./stories.js";
   import StoryView from "./StoryView.svelte";
@@ -25,6 +27,8 @@
     getJobName,
     getMusicName,
     getPersonName,
+    getVehicleName,
+    getGameName,
     getSentenceName,
   } from "./i18n.js";
 
@@ -84,6 +88,20 @@
     name: getPersonName(p.key, locale),
     image: p.image,
     sound: p.sound,
+  }));
+  $: vehiclesItems = vehicles.map((v) => ({
+    id: v.id,
+    key: v.key,
+    name: getVehicleName(v.key, locale),
+    image: v.image,
+    sound: v.sound,
+  }));
+  $: gamesItems = games.map((g) => ({
+    id: g.id,
+    key: g.key,
+    name: getGameName(g.key, locale),
+    image: g.image,
+    sound: g.sound,
   }));
   $: sentencesItems = sentences.map((s) => ({
     id: s.id,
@@ -173,6 +191,10 @@
       currentView = "music";
     } else if (path === "/people") {
       currentView = "people";
+    } else if (path === "/vehicles") {
+      currentView = "vehicles";
+    } else if (path === "/games") {
+      currentView = "games";
     } else if (path === "/sentences") {
       currentView = "sentences";
     } else if (path === "/info") {
@@ -194,6 +216,8 @@
     else if (view === "work") path = "/work";
     else if (view === "music") path = "/music";
     else if (view === "people") path = "/people";
+    else if (view === "vehicles") path = "/vehicles";
+    else if (view === "games") path = "/games";
     else if (view === "sentences") path = "/sentences";
     else if (view === "userCategory" && userCat)
       path = `/category/${userCat.id}`;
@@ -246,6 +270,8 @@
       work: "work",
       music: "music",
       people: "people",
+      vehicles: "vehicles",
+      games: "games",
       sentences: "sentences",
       stories: "stories",
     };
@@ -358,6 +384,28 @@
   <CategoryView
     items={peopleItems}
     categoryKey="people"
+    cardMode={selectedCardMode}
+    cardNavMode={settings.cardNavMode}
+    on:back={handleBack}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
+    on:jumpTo={handleJumpTo}
+  />
+{:else if currentView === "vehicles"}
+  <CategoryView
+    items={vehiclesItems}
+    categoryKey="vehicles"
+    cardMode={selectedCardMode}
+    cardNavMode={settings.cardNavMode}
+    on:back={handleBack}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
+    on:jumpTo={handleJumpTo}
+  />
+{:else if currentView === "games"}
+  <CategoryView
+    items={gamesItems}
+    categoryKey="games"
     cardMode={selectedCardMode}
     cardNavMode={settings.cardNavMode}
     on:back={handleBack}

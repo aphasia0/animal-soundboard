@@ -7,6 +7,8 @@
     import { jobs } from "./jobs.js";
     import { music } from "./music.js";
     import { people } from "./people.js";
+    import { vehicles } from "./vehicles.js";
+    import { games } from "./games.js";
     import { sentences } from "./sentences.js";
 
     import AddCategoryModal from "./AddCategoryModal.svelte";
@@ -43,6 +45,20 @@
             emoji: "👨‍👩‍👧‍👦",
             enabled: true,
             description: `${people.length} persone`,
+        },
+        {
+            id: "vehicles",
+            name: "Mezzi di trasporto",
+            emoji: "🚗",
+            enabled: true,
+            description: `${vehicles.length} mezzi`,
+        },
+        {
+            id: "games",
+            name: "Giochi",
+            emoji: "🎮",
+            enabled: true,
+            description: `${games.length} giochi`,
         },
         {
             id: "music",
