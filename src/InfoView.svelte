@@ -48,6 +48,26 @@
                 </div>
             </div>
 
+            <div class="hardware-section">
+                <h2>🎮 Controller Hardware</h2>
+                <p>
+                    Puoi controllare Sound Pad con un controller Bluetooth fatto in casa! 
+                    Usa i tasti <strong>A</strong> e <strong>Spazio</strong> per navigare le schede.
+                </p>
+                <img 
+                    src="soundpad-hw.png" 
+                    alt="Controller ESP32 con pulsanti grandi" 
+                    class="hardware-image"
+                />
+                <p class="hardware-link">
+                    Costruisci il tuo controller economico e open source!
+                    <br />
+                    <a href="https://github.com/aphasia0/animal-soundboard" target="_blank" rel="noopener noreferrer">
+                        ➡️ Vedi il progetto su GitHub
+                    </a>
+                </p>
+            </div>
+
             <div class="credit">Sviluppato (Vibecoded) con ❤️</div>
         </div>
     </div>
@@ -152,5 +172,52 @@
     .credit {
         font-size: 0.9rem;
         color: rgba(255, 255, 255, 0.7);
+    }
+
+    .hardware-section {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 1.5rem;
+        border-radius: 20px;
+        margin-bottom: 1.5rem;
+    }
+
+    .hardware-section h2 {
+        margin: 0 0 1rem;
+        font-size: 1.3rem;
+    }
+
+    .hardware-section p {
+        font-size: 1rem;
+        line-height: 1.5;
+        margin-bottom: 1rem;
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .hardware-image {
+        width: 100%;
+        max-width: 300px;
+        border-radius: 15px;
+        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .hardware-link {
+        font-size: 0.95rem;
+    }
+
+    .hardware-link a {
+        color: #FFD93D;
+        text-decoration: none;
+        font-weight: bold;
+        display: inline-block;
+        margin-top: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: rgba(255, 217, 61, 0.2);
+        border-radius: 10px;
+        transition: all 0.2s;
+    }
+
+    .hardware-link a:hover {
+        background: rgba(255, 217, 61, 0.4);
     }
 </style>
