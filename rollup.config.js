@@ -46,8 +46,8 @@ export default {
 			preventAssignment: true,
 			__SUPABASE_URL__: JSON.stringify(process.env.SUPABASE_URL || ''),
 			__SUPABASE_ANON_KEY__: JSON.stringify(process.env.SUPABASE_ANON_KEY || ''),
-			__COMMIT_REF__: JSON.stringify(process.env.COMMIT_REF || ''),
-			__BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString())
+			'process.env.COMMIT_REF || ""': JSON.stringify(process.env.COMMIT_REF || ''),
+			'new Date().toISOString()': JSON.stringify(new Date().toISOString())
 		}),
 		svelte({
 			compilerOptions: {

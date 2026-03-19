@@ -2,19 +2,16 @@
     import { createEventDispatcher } from "svelte";
     const dispatch = createEventDispatcher();
 
-    let commitId = "__COMMIT_REF__";
-    let buildTimestamp = "__BUILD_TIMESTAMP__";
+    const commitRef = process.env.COMMIT_REF || "";
+    const buildTs = new Date().toISOString();
 
-    if (commitId.startsWith('"')) {
-        commitId = commitId.slice(1, -1);
-        buildTimestamp = new Date(buildTimestamp.slice(1, -1)).toLocaleString("it-IT", {
+    const commitId = commitRef;
+    const buildTimestamp = buildTs 
+        ? new Date(buildTs).toLocaleString("it-IT", {
             dateStyle: "medium",
             timeStyle: "short"
-        });
-    } else {
-        commitId = "";
-        buildTimestamp = "";
-    }
+        }) 
+        : "";
 
     function goBack() {
         dispatch("back");
