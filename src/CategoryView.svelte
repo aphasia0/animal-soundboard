@@ -149,6 +149,13 @@
     let showColorPicker = false;
     let showPlaybackPicker = false;
 
+    function closeAllOverlays() {
+        showColorPicker = false;
+        showPlaybackPicker = false;
+        showSelector = false;
+        showFab = false;
+    }
+
     // --- State variables (declared BEFORE subscribe to avoid TDZ) ---
     let primaryColor = "#39ff14";
     let secondaryColor = "#ff0000";
@@ -255,7 +262,7 @@
 
     function handleCardSelect(e) {
         const { category, item, index } = e.detail;
-        showSelector = false;
+        closeAllOverlays();
 
         const isCurrentCat = category === (categoryId || categoryKey);
 
@@ -767,6 +774,7 @@
                     class:nav-locked={cardNavMode === "locked"}
                     class:active={cardNavMode !== "linear"}
                     on:click={() => {
+                        closeAllOverlays();
                         const next =
                             cardNavMode === "shuffle"
                                 ? "linear"
@@ -847,7 +855,7 @@
             <!-- Palette / Color Picker button -->
             <button
                 class="palette-btn"
-                on:click={() => (showColorPicker = !showColorPicker)}
+                on:click={() => { closeAllOverlays(); showColorPicker = !showColorPicker; }}
                 title="Colori card"
                 data-tooltip="Colori card"
             >
@@ -878,7 +886,7 @@
                     playbackMode === "autoplay_loop"}
                 class:playback-resume={playbackMode === "resume"}
                 class:playback-restart={playbackMode === "restart"}
-                on:click={() => (showPlaybackPicker = !showPlaybackPicker)}
+                on:click={() => { closeAllOverlays(); showPlaybackPicker = !showPlaybackPicker; }}
                 title="Modalità riproduzione"
                 data-tooltip="Modalità riproduzione"
             >
@@ -905,8 +913,7 @@
             <!-- Card Selector (Icon Only) -->
             <button
                 class="palette-btn"
-                on:click={() =>
-                    openSelectorForSlot(cardMode === 1 ? null : "A")}
+                on:click={() => { closeAllOverlays(); openSelectorForSlot(cardMode === 1 ? null : "A"); }}
                 title="Seleziona card"
                 data-tooltip="Seleziona card"
             >
@@ -961,10 +968,10 @@
                     >
                     <button
                         class="color-cancel"
-                        on:click={() => (showColorPicker = false)}
+                        on:click={() => { closeAllOverlays(); }}
                         >Annulla</button
                     >
-                    <button class="color-save" on:click={saveColors}
+                    <button class="color-save" on:click={() => { saveColors(); closeAllOverlays(); }}
                         >Salva</button
                     >
                 </div>
@@ -1113,7 +1120,7 @@
                 <button
                     class="color-cancel"
                     style="width:100%;margin-top:0.75rem"
-                    on:click={() => (showPlaybackPicker = false)}>Chiudi</button
+                    on:click={() => { closeAllOverlays(); }}>Chiudi</button
                 >
             </div>
         {/if}
@@ -1126,7 +1133,7 @@
                     <!-- svelte-ignore a11y-click-events-have-key-events -->
                     <div
                         class="fab-backdrop"
-                        on:click={() => (showFab = false)}
+                        on:click={() => { closeAllOverlays(); }}
                     ></div>
                     <div class="fab-dial">
                         <!-- Add -->
@@ -1135,7 +1142,7 @@
                             title="Aggiungi card"
                             data-tooltip="Aggiungi card"
                             on:click={() => {
-                                showFab = false;
+                                closeAllOverlays();
                                 addCard();
                             }}
                         >
@@ -1155,16 +1162,16 @@
                         </button>
                         <!-- Delete (only when a card is visible and in single mode) -->
                         {#if items.length > 0 && cardMode === 1}
-                            <button
-                                class="fab-action fab-delete"
-                                title="Elimina card"
-                                data-tooltip="Elimina card"
-                                on:click={() => {
-                                    showFab = false;
-                                    cardToDelete = items[currentIndex];
-                                    showDeleteConfirm = true;
-                                }}
-                            >
+                        <button
+                            class="fab-action fab-delete"
+                            title="Elimina card"
+                            data-tooltip="Elimina card"
+                            on:click={() => {
+                                closeAllOverlays();
+                                cardToDelete = items[currentIndex];
+                                showDeleteConfirm = true;
+                            }}
+                        >
                                 <svg
                                     viewBox="0 0 24 24"
                                     width="22"
@@ -1188,7 +1195,7 @@
                                 class="fab-action fab-edit"
                                 title="Modifica card"
                                 data-tooltip="Modifica card"
-                                on:click={openEditCard}
+                                on:click={() => { closeAllOverlays(); openEditCard(); }}
                             >
                                 <svg
                                     viewBox="0 0 24 24"
@@ -1217,7 +1224,7 @@
                     class:fab-open={showFab}
                     title="Opzioni"
                     data-tooltip="Opzioni"
-                    on:click={() => (showFab = !showFab)}
+                    on:click={() => { closeAllOverlays(); showFab = !showFab; }}
                 >
                     <svg
                         viewBox="0 0 24 24"
@@ -1365,7 +1372,7 @@
         <CardSelector
             on:select={handleCardSelect}
             on:close={() => {
-                showSelector = false;
+                closeAllOverlays();
                 selectorSlot = null;
             }}
             currentCategory={categoryId || categoryKey}
@@ -1416,19 +1423,23 @@
 <style>
     main {
         width: 100vw;
+        height: 100dvh;
         height: 100vh;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         display: flex;
         flex-direction: column;
         align-items: center;
         overflow: hidden;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
     .soundboard {
         width: 100%;
         height: 100%;
+        height: 100dvh;
         display: flex;
         flex-direction: column;
         padding: 1rem;
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom));
         box-sizing: border-box;
         position: relative;
     }

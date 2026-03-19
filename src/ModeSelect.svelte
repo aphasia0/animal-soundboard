@@ -132,12 +132,16 @@
 <style>
     main {
         width: 100vw;
+        height: 100dvh;
         height: 100vh;
         display: flex;
         align-items: flex-start;
         justify-content: flex-start;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
 
     .mode-select {
@@ -148,6 +152,7 @@
         align-items: center;
         justify-content: center;
         padding: 2rem;
+        padding-bottom: calc(2rem + env(safe-area-inset-bottom));
         box-sizing: border-box;
         position: relative;
     }

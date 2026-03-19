@@ -87,24 +87,32 @@
     main {
         width: 100vw;
         height: 100vh;
+        height: 100dvh;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         color: white;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 1rem;
+        padding-top: env(safe-area-inset-top, 1rem);
+        padding-bottom: env(safe-area-inset-bottom, 1rem);
+        box-sizing: border-box;
     }
 
     .info-view {
         width: 100%;
         max-width: 600px;
-        padding: 2rem;
+        padding: 0;
         box-sizing: border-box;
         position: relative;
+        padding-top: 4.5rem;
     }
 
     .top-nav {
-        position: absolute;
+        position: fixed;
         top: 1rem;
         left: 1rem;
         z-index: 100;
@@ -133,11 +141,12 @@
     .content {
         background: rgba(255, 255, 255, 0.1);
         backdrop-filter: blur(10px);
-        padding: 3rem 2rem;
+        padding: 2rem 1.5rem;
         border-radius: 30px;
         border: 1px solid rgba(255, 255, 255, 0.2);
         text-align: center;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+        margin-bottom: 1rem;
     }
 
     .title {
