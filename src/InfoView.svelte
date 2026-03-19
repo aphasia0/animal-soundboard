@@ -2,8 +2,19 @@
     import { createEventDispatcher } from "svelte";
     const dispatch = createEventDispatcher();
 
-    export let commitId = "8d7a35b";
-    export let buildTimestamp = "2026-03-04 09:49";
+    let commitId = "__COMMIT_REF__";
+    let buildTimestamp = "__BUILD_TIMESTAMP__";
+
+    if (commitId.startsWith('"')) {
+        commitId = commitId.slice(1, -1);
+        buildTimestamp = new Date(buildTimestamp.slice(1, -1)).toLocaleString("it-IT", {
+            dateStyle: "medium",
+            timeStyle: "short"
+        });
+    } else {
+        commitId = "";
+        buildTimestamp = "";
+    }
 
     function goBack() {
         dispatch("back");
@@ -37,16 +48,18 @@
                 immagini, progettata per l'apprendimento e il divertimento.
             </p>
 
+            {#if commitId}
             <div class="version-box">
                 <div class="version-row">
-                    <span class="label">Versione Commit</span>
-                    <span class="value">{commitId}</span>
+                    <span class="label">Commit</span>
+                    <span class="value commit">{commitId.slice(0, 7)}</span>
                 </div>
                 <div class="version-row">
-                    <span class="label">Data Build</span>
+                    <span class="label">Build</span>
                     <span class="value">{buildTimestamp}</span>
                 </div>
             </div>
+            {/if}
 
             <div class="hardware-section">
                 <h2>🎮 Controller Hardware</h2>
@@ -167,6 +180,13 @@
     .value {
         color: white;
         font-weight: bold;
+    }
+
+    .value.commit {
+        font-family: monospace;
+        background: rgba(255, 255, 255, 0.15);
+        padding: 0.2rem 0.5rem;
+        border-radius: 5px;
     }
 
     .credit {
