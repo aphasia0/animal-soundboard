@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+    <defs>
+        <linearGradient id="bgzebra_nitrisce" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#98D8C8"/>
+            <stop offset="100%" style="stop-color:#88C8B8"/>
+        </linearGradient>
+    </defs>
+    <rect width="200" height="200" rx="20" fill="url(#bgzebra_nitrisce)"/>
+    <text x="100" y="85" font-size="60" text-anchor="middle">🦓</text>
+    <text x="100" y="150" font-size="16" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-weight="bold">La zebra nitrisce</text>
+</svg>
