@@ -109,6 +109,32 @@ VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
+### 🔐 Cross-Domain Authentication (SSO-like)
+
+Sound Pad supports **shared authentication** across all apps on `*.antoniogiordano.dev`. 
+Once logged in on any app, you're automatically logged in on all others.
+
+**Requirements:**
+1. All apps must use the **same Supabase project** (same URL and anon key)
+2. Set these environment variables on Netlify for each app:
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**How it works:**
+- On login: session token is saved to a cookie on `.antoniogiordano.dev`
+- On page load: checks cookie first, restores session if found
+- On logout: clears both localStorage and cookie
+- Cookie expires after 7 days
+
+**For other developers:**
+Copy these files to your app to enable shared authentication:
+- `src/authCookie.js` - Cookie utilities
+- `src/authStore.js` - Updated auth logic
+- `src/supabaseClient.js` - Supabase client
+
 ## 🎮 How to Use
 
 ### Basic Mode
@@ -174,6 +200,7 @@ soundpad/
 │   ├── i18n.js            # Italian translations
 │   ├── settingsStore.js   # Settings state management
 │   ├── authStore.js       # Authentication state
+│   ├── authCookie.js      # Cross-domain cookie utilities
 │   ├── supabaseClient.js  # Supabase client wrapper
 │   ├── audioUtils.js      # Web Audio API utilities
 │   └── main.js            # Entry point
