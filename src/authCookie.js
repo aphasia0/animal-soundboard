@@ -26,12 +26,13 @@ export function getRootDomain() {
     return hostname;
 }
 
-export function setSessionCookie({ accessToken, refreshToken, expiresAt }) {
-    if (!accessToken) return;
+export function setSessionCookie(sessionData) {
+    if (!sessionData) return;
     
     const rootDomain = getRootDomain();
     
-    const cookieValue = btoa(JSON.stringify({ accessToken, refreshToken, expiresAt }));
+    // Store session as JSON in cookie
+    const cookieValue = btoa(JSON.stringify(sessionData));
     
     const cookieString = [
         `${COOKIE_NAME}=${encodeURIComponent(cookieValue)}`,

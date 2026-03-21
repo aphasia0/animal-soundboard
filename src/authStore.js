@@ -35,19 +35,12 @@ export async function initAuth() {
     let sessionToUse = localSession;
     
     if (!sessionToUse && cookieSession) {
-        // Try to restore session from cookie (convert camelCase to snake_case)
-        const { data, error } = await supabaseClient.auth.setSession({
-            access_token: cookieSession.accessToken,
-            refresh_token: cookieSession.refreshToken,
-        });
+        // Try to restore session from cookie
+        const { data, error } = await supabaseClient.auth.setSession(cookieSession);
         if (!error && data.session) {
             sessionToUse = data.session;
             // Update cookie with fresh tokens
-            setSessionCookie({
-                accessToken: data.session.access_token,
-                refreshToken: data.session.refresh_token,
-                expiresAt: data.session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
-            });
+            setSessionCookie(data.session);
         } else {
             // Cookie session invalid, clear it
             clearSessionCookie();
@@ -65,11 +58,7 @@ export async function initAuth() {
     authStateChangeHandler = async (_event, session) => {
         if (session) {
             // Session created/updated - sync to cookie
-            setSessionCookie({
-                accessToken: session.access_token,
-                refreshToken: session.refresh_token,
-                expiresAt: session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
-            });
+            setSessionCookie(session);
         } else {
             // Session cleared - remove from cookie
             clearSessionCookie();
@@ -88,11 +77,7 @@ export async function signUp(email, password) {
     
     // Sync to cookie if successful
     if (!error && data.session) {
-        setSessionCookie({
-            accessToken: data.session.access_token,
-            refreshToken: data.session.refresh_token,
-            expiresAt: data.session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
-        });
+        setSessionCookie(data.session);
     }
     
     return { data, error };
@@ -106,11 +91,7 @@ export async function signIn(email, password) {
     
     // Sync to cookie if successful
     if (!error && data.session) {
-        setSessionCookie({
-            accessToken: data.session.access_token,
-            refreshToken: data.session.refresh_token,
-            expiresAt: data.session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
-        });
+        setSessionCookie(data.session);
     }
     
     return { data, error };
@@ -134,11 +115,7 @@ export async function refreshSession() {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (session) {
-        setSessionCookie({
-            accessToken: session.access_token,
-            refreshToken: session.refresh_token,
-            expiresAt: session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
-        });
+        setSessionCookie(session);
     }
     
     return session;
