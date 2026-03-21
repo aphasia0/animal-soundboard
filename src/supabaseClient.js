@@ -7,11 +7,25 @@ const SUPABASE_ANON_KEY = __SUPABASE_ANON_KEY__;
 let client = null;
 
 export function getSupabase() {
+  if (client) return client;
 
-    if (client) return client;
-
-    if (typeof window !== 'undefined' && window.supabase) {
-        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    }
-    return client;
+  if (typeof window !== "undefined" && window.supabase) {
+    client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        storageKey: "sb-auth-token",
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: "pkce",
+        cookieOptions: {
+          domain: ".antoniogiordano.com",
+          path: "/",
+          sameSite: "Lax",
+          secure: true, // Should be true in production (HTTPS)
+          maxAge: 60 * 60 * 24 * 30, // 30 days
+        },
+      },
+    });
+  }
+  return client;
 }
