@@ -35,6 +35,10 @@
     let audioExtension = "webm"; // default, will update dynamically
     let audioChunks = [];
 
+    // File upload state
+    let audioFile = null;
+    let audioFilePreview = null;
+
     let currentUser;
     user.subscribe((v) => (currentUser = v));
 
@@ -51,6 +55,32 @@
         imageFile = file;
         const reader = new FileReader();
         reader.onload = (ev) => (imagePreview = ev.target.result);
+        reader.readAsDataURL(file);
+    }
+
+    function handleAudioFileSelect(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const validTypes = ["audio/webm", "audio/wav", "audio/wave", "audio/x-wav", "audio/mp4", "audio/mpeg", "audio/ogg"];
+        const validExtensions = ["webm", "wav", "m4a", "mp3", "ogg"];
+
+        const ext = file.name.split(".").pop().toLowerCase();
+        const isValidType = validTypes.some(t => file.type.includes(t.split("/")[1])) || validExtensions.includes(ext);
+
+        if (!isValidType) {
+            error = "Seleziona un formato audio valido (webm, wav)";
+            return;
+        }
+
+        audioFile = file;
+        audioExtension = ext === "wave" ? "wav" : ext;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            audioFilePreview = ev.target.result;
+            recordedUrl = ev.target.result;
+            recordedBlob = file;
+        };
         reader.readAsDataURL(file);
     }
 
@@ -222,6 +252,8 @@
         if (recordedUrl) URL.revokeObjectURL(recordedUrl);
         recordedUrl = null;
         recordingTime = 0;
+        audioFile = null;
+        audioFilePreview = null;
     }
 
     async function handleSave() {
@@ -234,8 +266,8 @@
             error = "Seleziona un'immagine";
             return;
         }
-        if (!editCard && !recordedBlob) {
-            error = "Registra un suono";
+        if (!editCard && !recordedBlob && !audioFile) {
+            error = "Registra o carica un suono";
             return;
         }
 
@@ -274,12 +306,13 @@
             finalImageUrl = imgUrlData.publicUrl;
         }
 
-        // Upload new sound if recorded
+        // Upload new sound if recorded or file selected
         if (recordedBlob) {
+            let soundFileToUpload = recordedBlob;
             const soundPath = `${uid}/${ts}.${audioExtension}`;
             const { error: sndErr } = await supabase.storage
                 .from("card-sounds")
-                .upload(soundPath, recordedBlob);
+                .upload(soundPath, soundFileToUpload);
             if (sndErr) {
                 error = "Errore upload suono: " + sndErr.message;
                 loading = false;
@@ -383,24 +416,35 @@
                 <button class="remove-btn" on:click={() => { existingSoundUrl = null; }}>✕</button>
             </div>
         {:else}
-            <div class="recorder">
-                {#if isRecording}
-                    <div class="recording-indicator">
-                        <span class="rec-dot"></span>
-                        <span>Registrazione... {recordingTime}s</span>
-                    </div>
-                    <button class="rec-btn stop" on:click={stopRecording}
-                        >⏹ Stop</button
-                    >
-                {:else}
-                    <button
-                        class="rec-btn"
-                        on:click={startRecording}
+            <div class="sound-buttons">
+                <div class="recorder">
+                    {#if isRecording}
+                        <div class="recording-indicator">
+                            <span class="rec-dot"></span>
+                            <span>Registrazione... {recordingTime}s</span>
+                        </div>
+                        <button class="rec-btn stop" on:click={stopRecording}
+                            >⏹ Stop</button
+                        >
+                    {:else}
+                        <button
+                            class="rec-btn"
+                            on:click={startRecording}
+                            disabled={loading}
+                        >
+                            🎤 Registra
+                        </button>
+                    {/if}
+                </div>
+                <label class="file-upload audio-upload">
+                    <input
+                        type="file"
+                        accept="audio/webm,audio/wav,audio/wave,audio/x-wav,audio/mp4,audio/mpeg,audio/ogg"
+                        on:change={handleAudioFileSelect}
                         disabled={loading}
-                    >
-                        🎤 Registra
-                    </button>
-                {/if}
+                    />
+                    <span>📁 Carica file</span>
+                </label>
             </div>
         {/if}
 
@@ -531,6 +575,22 @@
         padding: 1rem;
         border: 2px dashed #ccc;
         border-radius: 16px;
+    }
+    .sound-buttons {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .sound-buttons > * {
+        flex: 1;
+        min-width: 140px;
+    }
+    .audio-upload {
+        padding: 1rem;
+    }
+    .audio-upload span {
+        font-size: 1rem;
     }
     .rec-btn {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
