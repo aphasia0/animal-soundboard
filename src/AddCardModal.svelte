@@ -39,6 +39,11 @@
     let audioFile = null;
     let audioFilePreview = null;
 
+    // TTS state
+    let ttsText = "";
+    let ttsSpeed = 1.0;
+    let isGeneratingTts = false;
+
     let currentUser;
     user.subscribe((v) => (currentUser = v));
 
@@ -256,6 +261,33 @@
         audioFilePreview = null;
     }
 
+    async function generateTts() {
+        if (!ttsText.trim()) {
+            error = "Inserisci un testo da generare";
+            return;
+        }
+        error = "";
+        isGeneratingTts = true;
+        try {
+            const ttsUrl = __TTS_URL__ || "https://tts.antoniogiordano.dev";
+            const url = `${ttsUrl}/tts?text=${encodeURIComponent(ttsText)}&speed=${ttsSpeed}`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error("Errore generazione TTS");
+            }
+            const blob = await response.blob();
+            recordedBlob = blob;
+            recordedUrl = URL.createObjectURL(blob);
+            audioExtension = "wav";
+            ttsText = "";
+        } catch (err) {
+            console.error("TTS error:", err);
+            error = "Errore generazione audio: " + err.message;
+        } finally {
+            isGeneratingTts = false;
+        }
+    }
+
     async function handleSave() {
         if (!name.trim()) {
             error = "Inserisci un nome";
@@ -445,6 +477,32 @@
                     />
                     <span>📁 Carica file</span>
                 </label>
+            </div>
+            <div class="tts-section">
+                <div class="tts-label">Genera audio con TTS</div>
+                <div class="tts-inputs">
+                    <input
+                        type="text"
+                        placeholder="Inserisci il testo..."
+                        bind:value={ttsText}
+                        disabled={loading || isGeneratingTts}
+                        on:keydown={(e) => e.key === "Enter" && generateTts()}
+                    />
+                    <select bind:value={ttsSpeed} disabled={loading || isGeneratingTts}>
+                        <option value={0.5}>Lento (0.5x)</option>
+                        <option value={0.7}>Medio-lento (0.7x)</option>
+                        <option value={1.0}>Normale (1.0x)</option>
+                        <option value={1.2}>Veloce (1.2x)</option>
+                        <option value={1.5}>Molto veloce (1.5x)</option>
+                    </select>
+                    <button
+                        class="tts-btn"
+                        on:click={generateTts}
+                        disabled={loading || isGeneratingTts}
+                    >
+                        {isGeneratingTts ? "⏳..." : "🔊 Genera"}
+                    </button>
+                </div>
             </div>
         {/if}
 
@@ -671,6 +729,67 @@
         box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
     }
     .save-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+    .tts-section {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #f0f9ff;
+        border-radius: 16px;
+        border: 2px dashed #0ea5e9;
+    }
+    .tts-label {
+        font-size: 0.9rem;
+        color: #0369a1;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+    }
+    .tts-inputs {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .tts-inputs input[type="text"] {
+        flex: 1;
+        min-width: 150px;
+        padding: 0.75rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        outline: none;
+    }
+    .tts-inputs input[type="text"]:focus {
+        border-color: #0ea5e9;
+    }
+    .tts-inputs select {
+        padding: 0.75rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        outline: none;
+        cursor: pointer;
+    }
+    .tts-inputs select:focus {
+        border-color: #0ea5e9;
+    }
+    .tts-btn {
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        font-size: 0.95rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .tts-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+    }
+    .tts-btn:disabled {
         opacity: 0.7;
         cursor: not-allowed;
     }
