@@ -9,6 +9,7 @@
   import { initAuth, user } from "./authStore.js";
   import { getSupabase } from "./supabaseClient.js";
   import { settingsStore } from "./settingsStore.js";
+  import { isModalOpen } from "./modalStore.js";
 
   // Data imports
   import { animals } from "./animals.js";
@@ -289,6 +290,7 @@
 
   function handleShowAuth() {
     showAuthModal = true;
+    isModalOpen.set(true);
   }
 
   function handleOpenInfo() {
@@ -297,10 +299,12 @@
 
   function handleAddCategory() {
     showAddCategoryModal = true;
+    isModalOpen.set(true);
   }
 
   function handleCategorySaved() {
     showAddCategoryModal = false;
+    isModalOpen.set(false);
     currentView = "";
     setTimeout(() => {
       currentView = "home";
@@ -310,10 +314,12 @@
   function handleAddCard() {
     addCardCategoryId = selectedUserCategory?.id;
     showAddCardModal = true;
+    isModalOpen.set(true);
   }
 
   function handleCardSaved() {
     showAddCardModal = false;
+    isModalOpen.set(false);
     const cat = selectedUserCategory;
     currentView = "";
     setTimeout(() => {
@@ -462,6 +468,7 @@
   <AuthModal
     on:close={() => {
       showAuthModal = false;
+      isModalOpen.set(false);
       if (currentView === "home") {
         currentView = "";
         setTimeout(() => {
@@ -474,7 +481,7 @@
 
 {#if showAddCategoryModal}
   <AddCategoryModal
-    on:close={() => (showAddCategoryModal = false)}
+    on:close={() => { showAddCategoryModal = false; isModalOpen.set(false); }}
     on:saved={handleCategorySaved}
   />
 {/if}
@@ -482,7 +489,7 @@
 {#if showAddCardModal}
   <AddCardModal
     categoryId={addCardCategoryId}
-    on:close={() => (showAddCardModal = false)}
+    on:close={() => { showAddCardModal = false; isModalOpen.set(false); }}
     on:saved={handleCardSaved}
   />
 {/if}

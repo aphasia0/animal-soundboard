@@ -8,7 +8,12 @@ import css from 'rollup-plugin-css-only';
 import replace from '@rollup/plugin-replace';
 import dotenv from 'dotenv';
 
-dotenv.config();
+const isDev = process.env.ROLLUP_WATCH === 'true';
+if (isDev) {
+  dotenv.config({ path: 'local.env' });
+} else {
+  dotenv.config();
+}
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -47,6 +52,7 @@ export default {
 			__SUPABASE_URL__: JSON.stringify(process.env.SUPABASE_URL || ''),
 			__SUPABASE_ANON_KEY__: JSON.stringify(process.env.SUPABASE_ANON_KEY || ''),
 			__TTS_URL__: JSON.stringify(process.env.TTS_URL || ''),
+			__DOMAIN__: JSON.stringify(process.env.DOMAIN || ''),
 			'process.env.COMMIT_REF || ""': JSON.stringify(process.env.COMMIT_REF || ''),
 			'new Date().toISOString()': JSON.stringify(new Date().toISOString())
 		}),

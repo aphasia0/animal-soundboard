@@ -12,6 +12,7 @@
     import { sentences } from "./sentences.js";
 
     import AddCategoryModal from "./AddCategoryModal.svelte";
+    import { isModalOpen } from "./modalStore.js";
 
     const dispatch = createEventDispatcher();
 
@@ -85,6 +86,7 @@
         e.stopPropagation();
         catToEdit = cat;
         showEditCatModal = true;
+        isModalOpen.set(true);
     }
 
     function openDeleteCategory(cat, e) {
@@ -306,11 +308,13 @@
         editCategory={catToEdit}
         on:saved={async () => {
             showEditCatModal = false;
+            isModalOpen.set(false);
             catToEdit = null;
             await loadUserCategories();
         }}
         on:close={() => {
             showEditCatModal = false;
+            isModalOpen.set(false);
             catToEdit = null;
         }}
     />

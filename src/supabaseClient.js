@@ -3,6 +3,7 @@
 import Cookies from "js-cookie";
 const SUPABASE_URL = __SUPABASE_URL__;
 const SUPABASE_ANON_KEY = __SUPABASE_ANON_KEY__;
+const DOMAIN = __DOMAIN__;
 
 let client = null;
 
@@ -21,15 +22,15 @@ export function getSupabase() {
           },
           setItem: (key, value) => {
             Cookies.set(key, value, {
-              domain: ".antoniogiordano.dev", // Condivide il cookie su a. e b.
+              domain: DOMAIN || undefined,
               path: "/",
               sameSite: "Lax",
-              secure: true, // Obbligatorio se usi HTTPS
+              secure: true,
             });
           },
           removeItem: (key) => {
             Cookies.remove(key, {
-              domain: ".antoniogiordano.dev",
+              domain: DOMAIN || undefined,
               path: "/",
             });
           },

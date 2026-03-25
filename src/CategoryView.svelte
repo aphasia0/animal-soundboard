@@ -6,6 +6,7 @@
     import AddCardModal from "./AddCardModal.svelte";
     import { settingsStore } from "./settingsStore.js";
     import { user } from "./authStore.js";
+    import { isModalOpen } from "./modalStore.js";
     import {
         playAudio,
         stopAudio,
@@ -47,6 +48,7 @@
         cardToEdit = items[currentIndex];
         showEditModal = true;
         showFab = false;
+        isModalOpen.set(true);
     }
 
     function handleEditSaved() {
@@ -329,6 +331,8 @@
 
     // ─── Single card ───────────────────────────────────────────────────────────
     async function handlePressStart() {
+        if ($isModalOpen) return;
+        
         const currentItem = displayItem;
         if (!currentItem) return;
 
@@ -422,7 +426,9 @@
                 next();
                 activeMaxTime = resolveMaxTime(displayItem.sound);
                 resumeAudioContext();
-                playAudio(displayItem.sound, 0);
+                if (!$isModalOpen) {
+                    playAudio(displayItem.sound, 0);
+                }
                 animationFrameId = requestAnimationFrame(updateProgress);
             } else if (playbackMode === "once") {
                 // One-shot playback completed - advance to next card if not locked
@@ -457,6 +463,8 @@
 
     // ─── Dual card A ───────────────────────────────────────────────────────────
     async function handlePressStartA() {
+        if ($isModalOpen) return;
+        
         const currentItem = displayItemA;
         if (!currentItem) return;
 
@@ -541,7 +549,9 @@
                 audioOffsetA = 0;
                 activeMaxTimeA = resolveMaxTime(displayItemA.sound);
                 resumeAudioContext();
-                playAudioChannel(displayItemA.sound, "cardA", 0);
+                if (!$isModalOpen) {
+                    playAudioChannel(displayItemA.sound, "cardA", 0);
+                }
                 animationFrameIdA = requestAnimationFrame(updateProgressA);
             } else if (playbackMode === "once") {
                 isPressedA = false;
@@ -571,6 +581,8 @@
 
     // ─── Dual card B ───────────────────────────────────────────────────────────
     async function handlePressStartB() {
+        if ($isModalOpen) return;
+        
         const currentItem = displayItemB;
         if (!currentItem) return;
 
@@ -655,7 +667,9 @@
                 audioOffsetB = 0;
                 activeMaxTimeB = resolveMaxTime(displayItemB.sound);
                 resumeAudioContext();
-                playAudioChannel(displayItemB.sound, "cardB", 0);
+                if (!$isModalOpen) {
+                    playAudioChannel(displayItemB.sound, "cardB", 0);
+                }
                 animationFrameIdB = requestAnimationFrame(updateProgressB);
             } else if (playbackMode === "once") {
                 isPressedB = false;
@@ -1415,6 +1429,7 @@
             on:close={() => {
                 showEditModal = false;
                 cardToEdit = null;
+                isModalOpen.set(false);
             }}
         />
     {/if}

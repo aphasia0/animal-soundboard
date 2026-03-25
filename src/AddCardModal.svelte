@@ -35,9 +35,7 @@
     let audioExtension = "webm"; // default, will update dynamically
     let audioChunks = [];
 
-    // File upload state
-    let audioFile = null;
-    let audioFilePreview = null;
+    
 
     // TTS state
     let ttsText = "";
@@ -60,32 +58,6 @@
         imageFile = file;
         const reader = new FileReader();
         reader.onload = (ev) => (imagePreview = ev.target.result);
-        reader.readAsDataURL(file);
-    }
-
-    function handleAudioFileSelect(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const validTypes = ["audio/webm", "audio/wav", "audio/wave", "audio/x-wav", "audio/mp4", "audio/mpeg", "audio/ogg"];
-        const validExtensions = ["webm", "wav", "m4a", "mp3", "ogg"];
-
-        const ext = file.name.split(".").pop().toLowerCase();
-        const isValidType = validTypes.some(t => file.type.includes(t.split("/")[1])) || validExtensions.includes(ext);
-
-        if (!isValidType) {
-            error = "Seleziona un formato audio valido (webm, wav)";
-            return;
-        }
-
-        audioFile = file;
-        audioExtension = ext === "wave" ? "wav" : ext;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            audioFilePreview = ev.target.result;
-            recordedUrl = ev.target.result;
-            recordedBlob = file;
-        };
         reader.readAsDataURL(file);
     }
 
@@ -257,8 +229,6 @@
         if (recordedUrl) URL.revokeObjectURL(recordedUrl);
         recordedUrl = null;
         recordingTime = 0;
-        audioFile = null;
-        audioFilePreview = null;
     }
 
     async function generateTts() {
@@ -298,8 +268,8 @@
             error = "Seleziona un'immagine";
             return;
         }
-        if (!editCard && !recordedBlob && !audioFile) {
-            error = "Registra o carica un suono";
+        if (!editCard && !recordedBlob) {
+            error = "Registra un suono";
             return;
         }
 
@@ -338,13 +308,12 @@
             finalImageUrl = imgUrlData.publicUrl;
         }
 
-        // Upload new sound if recorded or file selected
+        // Upload new sound if recorded
         if (recordedBlob) {
-            let soundFileToUpload = recordedBlob;
             const soundPath = `${uid}/${ts}.${audioExtension}`;
             const { error: sndErr } = await supabase.storage
                 .from("card-sounds")
-                .upload(soundPath, soundFileToUpload);
+                .upload(soundPath, recordedBlob);
             if (sndErr) {
                 error = "Errore upload suono: " + sndErr.message;
                 loading = false;
@@ -467,41 +436,36 @@
                             🎤 Registra
                         </button>
                     {/if}
-                </div>
-                <label class="file-upload audio-upload">
-                    <input
-                        type="file"
-                        accept="audio/webm,audio/wav,audio/wave,audio/x-wav,audio/mp4,audio/mpeg,audio/ogg"
-                        on:change={handleAudioFileSelect}
-                        disabled={loading}
-                    />
-                    <span>📁 Carica file</span>
-                </label>
-            </div>
-            <div class="tts-section">
-                <div class="tts-label">Genera audio con TTS</div>
-                <div class="tts-inputs">
-                    <input
-                        type="text"
-                        placeholder="Inserisci il testo..."
-                        bind:value={ttsText}
-                        disabled={loading || isGeneratingTts}
-                        on:keydown={(e) => e.key === "Enter" && generateTts()}
-                    />
-                    <select bind:value={ttsSpeed} disabled={loading || isGeneratingTts}>
-                        <option value={0.5}>Lento (0.5x)</option>
-                        <option value={0.7}>Medio-lento (0.7x)</option>
-                        <option value={1.0}>Normale (1.0x)</option>
-                        <option value={1.2}>Veloce (1.2x)</option>
-                        <option value={1.5}>Molto veloce (1.5x)</option>
-                    </select>
-                    <button
-                        class="tts-btn"
-                        on:click={generateTts}
-                        disabled={loading || isGeneratingTts}
-                    >
-                        {isGeneratingTts ? "⏳..." : "🔊 Genera"}
-                    </button>
+                    
+                    <!-- TTS Section inside recorder -->
+                    <div class="tts-section">
+                        <div class="tts-label">Genera audio con TTS</div>
+                        <div class="tts-inputs">
+                            <input
+                                type="text"
+                                placeholder="Inserisci il testo..."
+                                bind:value={ttsText}
+                                disabled={loading || isGeneratingTts}
+                                on:keydown={(e) => e.key === "Enter" && generateTts()}
+                            />
+                            <select bind:value={ttsSpeed} disabled={loading || isGeneratingTts}>
+                                <option value={3}>Molto molto lento (3x)</option>
+                                <option value={2}>Molto lento (2x)</option>
+                                <option value={1.5}>Lento (1.5x)</option>
+                                <option value={1.2}>Medio-lento (1.2x)</option>
+                                <option value={1.0}>Normale (1.0x)</option>
+                                <option value={0.7}>Veloce (0.7x)</option>
+                                <option value={0.5}>Molto veloce (0.5x)</option>
+                            </select>
+                            <button
+                                class="tts-btn"
+                                on:click={generateTts}
+                                disabled={loading || isGeneratingTts}
+                            >
+                                {isGeneratingTts ? "⏳..." : "🔊 Genera"}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         {/if}
@@ -629,26 +593,15 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 0.75rem;
+        gap: 0.5rem;
         padding: 1rem;
         border: 2px dashed #ccc;
         border-radius: 16px;
     }
     .sound-buttons {
         display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-    .sound-buttons > * {
-        flex: 1;
-        min-width: 140px;
-    }
-    .audio-upload {
-        padding: 1rem;
-    }
-    .audio-upload span {
-        font-size: 1rem;
+        flex-direction: column;
+        gap: 1rem;
     }
     .rec-btn {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -734,7 +687,6 @@
     }
 
     .tts-section {
-        margin-top: 1rem;
         padding: 1rem;
         background: #f0f9ff;
         border-radius: 16px;
