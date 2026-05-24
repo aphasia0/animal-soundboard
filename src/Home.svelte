@@ -10,6 +10,7 @@
     import { vehicles } from "./vehicles.js";
     import { games } from "./games.js";
     import { sentences } from "./sentences.js";
+    import { instruments } from "./instruments.js";
 
     import AddCategoryModal from "./AddCategoryModal.svelte";
     import { isModalOpen } from "./modalStore.js";
@@ -76,6 +77,13 @@
             emoji: "💬",
             enabled: true,
             description: `${sentences.length} frasi`,
+        },
+        {
+            id: "instruments",
+            name: "Strumenti",
+            emoji: "🎺",
+            enabled: true,
+            description: `${instruments.length} strumenti`,
         },
     ];
 

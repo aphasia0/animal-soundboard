@@ -193,3 +193,34 @@ export function getSentenceName(key, locale = 'it') {
     }
     return key;
 }
+
+// Instrument translations
+const instrumentTranslations = {
+    'pianoforte': 'Pianoforte',
+    'chitarra': 'Chitarra',
+    'flauto': 'Flauto',
+    'tamburo': 'Tamburo',
+    'tromba': 'Tromba',
+    'violino': 'Violino',
+    'xilofono': 'Xilofono',
+    'sassofono': 'Sassofono',
+    'arpa': 'Arpa',
+    'organo': 'Organo',
+    'clarinetto': 'Clarinetto',
+    'fisarmonica': 'Fisarmonica',
+    'campana': 'Campana',
+    'sintetizzatore': 'Sintetizzatore',
+    'ukulele': 'Ukulele',
+    'mandolino': 'Mandolino',
+    'triangolo': 'Triangolo',
+    'maracas': 'Maracas',
+    'banjo': 'Banjo',
+    'violoncello': 'Violoncello'
+};
+
+export function getInstrumentName(key, locale = 'it') {
+    if (locale === 'it') {
+        return instrumentTranslations[key] || key;
+    }
+    return key;
+}

@@ -20,6 +20,7 @@
   import { games } from "./games.js";
   import { sentences } from "./sentences.js";
   import { stories } from "./stories.js";
+  import { instruments } from "./instruments.js";
   import StoryView from "./StoryView.svelte";
   import StorySelect from "./StorySelect.svelte";
   import InfoView from "./InfoView.svelte";
@@ -31,6 +32,7 @@
     getVehicleName,
     getGameName,
     getSentenceName,
+    getInstrumentName,
   } from "./i18n.js";
 
   let currentView = "modeSelect";
@@ -110,6 +112,13 @@
     name: getSentenceName(s.key, locale),
     image: s.image,
     sound: s.sound,
+  }));
+  $: instrumentsItems = instruments.map((i) => ({
+    id: i.id,
+    key: i.key,
+    name: getInstrumentName(i.key, locale),
+    image: i.image,
+    sound: i.sound,
   }));
 
   // Reactive user cards fetching
@@ -198,6 +207,8 @@
       currentView = "games";
     } else if (path === "/sentences") {
       currentView = "sentences";
+    } else if (path === "/instruments") {
+      currentView = "instruments";
     } else if (path === "/info") {
       currentView = "info";
     } else {
@@ -220,6 +231,7 @@
     else if (view === "vehicles") path = "/vehicles";
     else if (view === "games") path = "/games";
     else if (view === "sentences") path = "/sentences";
+    else if (view === "instruments") path = "/instruments";
     else if (view === "userCategory" && userCat)
       path = `/category/${userCat.id}`;
     else if (view === "info") path = "/info";
@@ -274,6 +286,7 @@
       vehicles: "vehicles",
       games: "games",
       sentences: "sentences",
+      instruments: "instruments",
       stories: "stories",
     };
     if (viewMap[category]) {
@@ -423,6 +436,17 @@
   <CategoryView
     items={sentencesItems}
     categoryKey="sentences"
+    cardMode={selectedCardMode}
+    cardNavMode={settings.cardNavMode}
+    on:back={handleBack}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
+    on:jumpTo={handleJumpTo}
+  />
+{:else if currentView === "instruments"}
+  <CategoryView
+    items={instrumentsItems}
+    categoryKey="instruments"
     cardMode={selectedCardMode}
     cardNavMode={settings.cardNavMode}
     on:back={handleBack}
