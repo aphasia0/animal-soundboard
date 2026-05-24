@@ -26,6 +26,7 @@ export function getSupabase() {
               path: "/",
               sameSite: "Lax",
               secure: true,
+              expires: 30,
             });
           },
           removeItem: (key) => {

@@ -211,3 +211,14 @@ export function getAudioDuration(src) {
     const buffer = bufferCache.get(src);
     return buffer ? buffer.duration : 0;
 }
+
+/**
+ * Triggers a short haptic feedback (vibration) if supported by the device.
+ *
+ * @param {number} [duration=50] - Duration of the vibration in ms
+ */
+export function triggerVibration(duration = 50) {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(duration);
+    }
+}

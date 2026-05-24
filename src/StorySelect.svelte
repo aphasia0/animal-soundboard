@@ -1,14 +1,18 @@
 <script>
     import { createEventDispatcher } from "svelte";
     import { stories } from "./stories.js";
+    import { triggerVibration } from "./audioUtils.js";
+    import { fade, fly, scale } from "svelte/transition";
 
     const dispatch = createEventDispatcher();
 
     function selectStory(story) {
+        triggerVibration(60);
         dispatch("select", { story });
     }
 
     function goBack() {
+        triggerVibration(40);
         dispatch("back");
     }
 </script>
@@ -38,11 +42,11 @@
             </button>
         </div>
 
-        <h3 class="title">🎭 Cantastorie</h3>
+        <h3 class="title" in:scale={{ duration: 500, delay: 100 }}>🎭 Cantastorie</h3>
 
         <div class="grid">
-            {#each stories as story}
-                <button class="card" on:click={() => selectStory(story)}>
+            {#each stories as story, i}
+                <button class="card" on:click={() => selectStory(story)} in:fly={{ y: 50, duration: 600, delay: i * 150 }}>
                     <div class="image-container">
                         {#if story.chunks && story.chunks[0]}
                             <img

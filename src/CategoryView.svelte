@@ -16,7 +16,9 @@
         preloadSounds,
         resumeAudioContext,
         getAudioDuration,
+        triggerVibration,
     } from "./audioUtils.js";
+    import { fade, fly, scale, slide } from "svelte/transition";
 
     export let items = [];
     export let categoryId = null; // For custom categories
@@ -139,10 +141,12 @@
     }
 
     function goBack() {
+        triggerVibration(40);
         dispatch("back");
     }
 
     function addCard() {
+        triggerVibration(40);
         dispatch("addCard", categoryId);
     }
 
@@ -332,6 +336,7 @@
     // ─── Single card ───────────────────────────────────────────────────────────
     async function handlePressStart() {
         if ($isModalOpen) return;
+        triggerVibration(60);
         
         const currentItem = displayItem;
         if (!currentItem) return;
@@ -464,6 +469,7 @@
     // ─── Dual card A ───────────────────────────────────────────────────────────
     async function handlePressStartA() {
         if ($isModalOpen) return;
+        triggerVibration(60);
         
         const currentItem = displayItemA;
         if (!currentItem) return;
@@ -582,6 +588,7 @@
     // ─── Dual card B ───────────────────────────────────────────────────────────
     async function handlePressStartB() {
         if ($isModalOpen) return;
+        triggerVibration(60);
         
         const currentItem = displayItemB;
         if (!currentItem) return;
@@ -788,6 +795,7 @@
                     class:nav-locked={cardNavMode === "locked"}
                     class:active={cardNavMode !== "linear"}
                     on:click={() => {
+                        triggerVibration(45);
                         closeAllOverlays();
                         const next =
                             cardNavMode === "shuffle"
@@ -1281,29 +1289,32 @@
             >
                 <div class="progress-bar" style="width: {progress}%"></div>
             </div>
-            <button
-                class="item-button primary"
-                class:pressed={isPressed}
-                on:mousedown={() => {
-                    if (!isTouchDevice) handlePressStart();
-                }}
-                on:mouseup={() => {
-                    if (!isTouchDevice) handlePressEnd();
-                }}
-                on:mouseleave={() => {
-                    if (!isTouchDevice) handlePressEnd();
-                }}
-                on:touchstart={handleTouchStart}
-                on:touchend={handleTouchEnd}
-                on:touchcancel={handleTouchEnd}
-            >
-                <img
-                    src={displayItem.image}
-                    alt={displayItem.name}
-                    class:rounded={!displayItem.image?.endsWith(".svg")}
-                />
-                <div class="item-name">{displayItem.name}</div>
-            </button>
+            {#key currentIndex}
+                <button
+                    class="item-button primary"
+                    class:pressed={isPressed}
+                    on:mousedown={() => {
+                        if (!isTouchDevice) handlePressStart();
+                    }}
+                    on:mouseup={() => {
+                        if (!isTouchDevice) handlePressEnd();
+                    }}
+                    on:mouseleave={() => {
+                        if (!isTouchDevice) handlePressEnd();
+                    }}
+                    on:touchstart={handleTouchStart}
+                    on:touchend={handleTouchEnd}
+                    on:touchcancel={handleTouchEnd}
+                    in:scale={{ duration: 300 }}
+                >
+                    <img
+                        src={displayItem.image}
+                        alt={displayItem.name}
+                        class:rounded={!displayItem.image?.endsWith(".svg")}
+                    />
+                    <div class="item-name">{displayItem.name}</div>
+                </button>
+            {/key}
         {:else}
             <div class="dual-container" class:landscape={isLandscape}>
                 <div class="card-wrapper">
@@ -1316,31 +1327,34 @@
                             style="width: {progressA}%"
                         ></div>
                     </div>
-                    <button
-                        class="item-button primary"
-                        class:pressed={isPressedA}
-                        on:mousedown={() => {
-                            if (!isTouchDevice) handlePressStartA();
-                        }}
-                        on:mouseup={() => {
-                            if (!isTouchDevice) handlePressEndA();
-                        }}
-                        on:mouseleave={() => {
-                            if (!isTouchDevice) handlePressEndA();
-                        }}
-                        on:touchstart={handleTouchStartA}
-                        on:touchend={handleTouchEndA}
-                        on:touchcancel={handleTouchEndA}
-                    >
-                        <img
-                            src={displayItemA.image}
-                            alt={displayItemA.name}
-                            class:rounded={!displayItemA.image?.endsWith(
-                                ".svg",
-                            )}
-                        />
-                        <div class="item-name">{displayItemA.name}</div>
-                    </button>
+                    {#key indexA}
+                        <button
+                            class="item-button primary"
+                            class:pressed={isPressedA}
+                            on:mousedown={() => {
+                                if (!isTouchDevice) handlePressStartA();
+                            }}
+                            on:mouseup={() => {
+                                if (!isTouchDevice) handlePressEndA();
+                            }}
+                            on:mouseleave={() => {
+                                if (!isTouchDevice) handlePressEndA();
+                            }}
+                            on:touchstart={handleTouchStartA}
+                            on:touchend={handleTouchEndA}
+                            on:touchcancel={handleTouchEndA}
+                            in:scale={{ duration: 300 }}
+                        >
+                            <img
+                                src={displayItemA.image}
+                                alt={displayItemA.name}
+                                class:rounded={!displayItemA.image?.endsWith(
+                                    ".svg",
+                                )}
+                            />
+                            <div class="item-name">{displayItemA.name}</div>
+                        </button>
+                    {/key}
                 </div>
                 <div class="card-wrapper">
                     <div
@@ -1352,31 +1366,34 @@
                             style="width: {progressB}%"
                         ></div>
                     </div>
-                    <button
-                        class="item-button secondary"
-                        class:pressed={isPressedB}
-                        on:mousedown={() => {
-                            if (!isTouchDevice) handlePressStartB();
-                        }}
-                        on:mouseup={() => {
-                            if (!isTouchDevice) handlePressEndB();
-                        }}
-                        on:mouseleave={() => {
-                            if (!isTouchDevice) handlePressEndB();
-                        }}
-                        on:touchstart={handleTouchStartB}
-                        on:touchend={handleTouchEndB}
-                        on:touchcancel={handleTouchEndB}
-                    >
-                        <img
-                            src={displayItemB.image}
-                            alt={displayItemB.name}
-                            class:rounded={!displayItemB.image?.endsWith(
-                                ".svg",
-                            )}
-                        />
-                        <div class="item-name">{displayItemB.name}</div>
-                    </button>
+                    {#key indexB}
+                        <button
+                            class="item-button secondary"
+                            class:pressed={isPressedB}
+                            on:mousedown={() => {
+                                if (!isTouchDevice) handlePressStartB();
+                            }}
+                            on:mouseup={() => {
+                                if (!isTouchDevice) handlePressEndB();
+                            }}
+                            on:mouseleave={() => {
+                                if (!isTouchDevice) handlePressEndB();
+                            }}
+                            on:touchstart={handleTouchStartB}
+                            on:touchend={handleTouchEndB}
+                            on:touchcancel={handleTouchEndB}
+                            in:scale={{ duration: 300 }}
+                        >
+                            <img
+                                src={displayItemB.image}
+                                alt={displayItemB.name}
+                                class:rounded={!displayItemB.image?.endsWith(
+                                    ".svg",
+                                )}
+                            />
+                            <div class="item-name">{displayItemB.name}</div>
+                        </button>
+                    {/key}
                 </div>
             </div>
         {/if}

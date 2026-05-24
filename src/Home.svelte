@@ -13,6 +13,8 @@
 
     import AddCategoryModal from "./AddCategoryModal.svelte";
     import { isModalOpen } from "./modalStore.js";
+    import { triggerVibration } from "./audioUtils.js";
+    import { fade, fly, scale } from "svelte/transition";
 
     const dispatch = createEventDispatcher();
 
@@ -84,6 +86,7 @@
 
     function openEditCategory(cat, e) {
         e.stopPropagation();
+        triggerVibration(40);
         catToEdit = cat;
         showEditCatModal = true;
         isModalOpen.set(true);
@@ -91,12 +94,14 @@
 
     function openDeleteCategory(cat, e) {
         e.stopPropagation();
+        triggerVibration(40);
         catToDelete = cat;
         showDeleteCatConfirm = true;
     }
 
     async function confirmDeleteCategory() {
         if (!catToDelete) return;
+        triggerVibration(80);
         const supabase = getSupabase();
         await supabase
             .from("user_categories")
@@ -134,20 +139,23 @@
 
     function selectCategory(category) {
         if (category.enabled) {
+            triggerVibration(60);
             dispatch("select", { categoryId: category.id });
         }
     }
 
     function selectUserCategory(cat) {
+        triggerVibration(60);
         dispatch("selectUserCategory", { category: cat });
     }
 
     function handleAddCategory() {
-        // Assuming authentication is handled elsewhere or not required for adding categories in this context
+        triggerVibration(50);
         dispatch("addCategory");
     }
 
     function goBack() {
+        triggerVibration(50);
         dispatch("back");
     }
 </script>
@@ -177,16 +185,17 @@
             </button>
         </div>
 
-        <h3 class="title">Sound Pad</h3>
+        <h3 class="title" in:scale={{ duration: 500, delay: 100 }}>Sound Pad</h3>
 
         <div class="grid">
-            {#each categories as category}
+            {#each categories as category, i}
                 <button
                     class="card"
                     class:enabled={category.enabled}
                     class:disabled={!category.enabled}
                     on:click={() => selectCategory(category)}
                     disabled={!category.enabled}
+                    in:fly={{ y: 50, duration: 600, delay: i * 80 }}
                 >
                     <div class="emoji">{category.emoji}</div>
                     <div class="name">{category.name}</div>
@@ -194,11 +203,12 @@
                 </button>
             {/each}
 
-            {#each userCategories as ucat}
+            {#each userCategories as ucat, i}
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
                 <div
                     class="card enabled user-card"
                     on:click={() => selectUserCategory(ucat)}
+                    in:fly={{ y: 50, duration: 600, delay: (categories.length + i) * 80 }}
                 >
                     <!-- Edit & Delete overlay icons -->
                     <div class="cat-actions">
@@ -262,7 +272,11 @@
                 </div>
             {/each}
 
-            <button class="card add-card" on:click={handleAddCategory}>
+            <button 
+                class="card add-card" 
+                on:click={handleAddCategory}
+                in:fly={{ y: 50, duration: 600, delay: (categories.length + userCategories.length) * 80 }}
+            >
                 <div class="emoji">＋</div>
                 <div class="name">Aggiungi</div>
                 <div class="description">Nuova categoria</div>

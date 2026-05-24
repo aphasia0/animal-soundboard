@@ -1,16 +1,20 @@
 <script>
     import { createEventDispatcher } from "svelte";
     import { signOut } from "./authStore.js";
+    import { triggerVibration } from "./audioUtils.js";
+    import { fade, fly, scale } from "svelte/transition";
 
     export let currentUser = null;
     let showUserMenu = false;
     const dispatch = createEventDispatcher();
 
     function selectMode(cardMode) {
+        triggerVibration(60);
         dispatch("select", cardMode);
     }
 
     function handleLoginClick() {
+        triggerVibration(40);
         if (currentUser) {
             showUserMenu = !showUserMenu;
         } else {
@@ -19,10 +23,12 @@
     }
 
     function handleInfoClick() {
+        triggerVibration(40);
         dispatch("openInfo");
     }
 
     async function handleLogout() {
+        triggerVibration(80);
         await signOut();
         showUserMenu = false;
     }
@@ -63,10 +69,10 @@
             {/if}
         </div>
 
-        <h3 class="title">Scegli Modalità</h3>
+        <h3 class="title" in:scale={{ duration: 500, delay: 100 }}>Scegli Modalità</h3>
 
         <div class="grid">
-            <button class="card enabled" on:click={() => selectMode(1)}>
+            <button class="card enabled" on:click={() => selectMode(1)} in:fly={{ y: 50, duration: 600, delay: 150 }}>
                 <div class="icon-container">
                     <svg class="mode-icon" viewBox="0 0 60 80" fill="none">
                         <rect
@@ -85,7 +91,7 @@
                 <div class="description">Modalità classica</div>
             </button>
 
-            <button class="card enabled" on:click={() => selectMode(2)}>
+            <button class="card enabled" on:click={() => selectMode(2)} in:fly={{ y: 50, duration: 600, delay: 250 }}>
                 <div class="icon-container">
                     <svg
                         class="mode-icon dual-icon"
@@ -118,7 +124,7 @@
                 <div class="description">Due card affiancate</div>
             </button>
 
-            <button class="card enabled" on:click={() => selectMode("stories")}>
+            <button class="card enabled" on:click={() => selectMode("stories")} in:fly={{ y: 50, duration: 600, delay: 350 }}>
                 <div class="icon-container">
                     <div class="emoji-icon">🐺</div>
                 </div>

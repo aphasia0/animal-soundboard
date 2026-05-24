@@ -1,5 +1,7 @@
 <script>
     import { createEventDispatcher, onMount, onDestroy } from "svelte";
+    import { triggerVibration } from "./audioUtils.js";
+    import { fade, fly, scale } from "svelte/transition";
 
     export let story; // The story object
 
@@ -76,6 +78,7 @@
     }
 
     function goBack() {
+        triggerVibration(40);
         dispatch("back");
     }
 
@@ -85,6 +88,7 @@
         if (currentIndex === story.chunks.length - 1 && !isPlaying && showText)
             return;
 
+        triggerVibration(60);
         if (!isPlaying) {
             playCurrentChunk();
         } else {
