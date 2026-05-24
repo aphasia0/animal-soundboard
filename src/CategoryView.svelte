@@ -14,6 +14,7 @@
         stopAudioChannel,
         stopAllChannels,
         preloadSounds,
+        preloadImages,
         resumeAudioContext,
         getAudioDuration,
         triggerVibration,
@@ -112,6 +113,11 @@
         return idx;
     }
 
+    $: if (items && items.length > 0) {
+        preloadSounds(items.map((i) => i.sound));
+        preloadImages(items.map((i) => i.image));
+    }
+
     onMount(() => {
         checkOrientation();
         window.addEventListener("resize", checkOrientation);
@@ -119,7 +125,6 @@
             "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
         if (items.length > 0) {
-            preloadSounds(items.map((i) => i.sound));
             resetIndices();
         }
     });

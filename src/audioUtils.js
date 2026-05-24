@@ -60,6 +60,21 @@ export async function preloadSounds(paths) {
 }
 
 /**
+ * Preloads an array of image URLs by creating Image objects in memory.
+ * Subsequent renders of these image URLs in <img> tags will be instant.
+ *
+ * @param {string[]} urls - Array of image URLs to preload
+ */
+export function preloadImages(urls) {
+    if (!urls || !Array.isArray(urls)) return;
+    urls.forEach((url) => {
+        if (!url) return;
+        const img = new Image();
+        img.src = url;
+    });
+}
+
+/**
  * Fetches or retrieves a cached AudioBuffer for the given source.
  */
 async function getBuffer(src) {

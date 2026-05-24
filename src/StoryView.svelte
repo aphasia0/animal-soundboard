@@ -17,7 +17,23 @@
     $: currentChunk = story.chunks[currentIndex];
 
     onMount(() => {
-        // Wait for user click to start
+        // Preload all chunk images and audio for smooth transitions
+        if (story && story.chunks) {
+            story.chunks.forEach((chunk) => {
+                if (chunk.sound) {
+                    const audio = new Audio();
+                    audio.src = chunk.sound; // browser eager-loads/caches the audio file
+                }
+                if (chunk.imagePortrait) {
+                    const imgP = new Image();
+                    imgP.src = chunk.imagePortrait;
+                }
+                if (chunk.imageLandscape) {
+                    const imgL = new Image();
+                    imgL.src = chunk.imageLandscape;
+                }
+            });
+        }
     });
 
     onDestroy(() => {

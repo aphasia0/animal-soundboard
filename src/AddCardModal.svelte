@@ -296,7 +296,10 @@
             const imgPath = `${uid}/${ts}.${imgExt}`;
             const { error: imgErr } = await supabase.storage
                 .from("card-images")
-                .upload(imgPath, fileToUpload);
+                .upload(imgPath, fileToUpload, {
+                    cacheControl: "31536000",
+                    upsert: false,
+                });
             if (imgErr) {
                 error = "Errore upload immagine: " + imgErr.message;
                 loading = false;
@@ -313,7 +316,10 @@
             const soundPath = `${uid}/${ts}.${audioExtension}`;
             const { error: sndErr } = await supabase.storage
                 .from("card-sounds")
-                .upload(soundPath, recordedBlob);
+                .upload(soundPath, recordedBlob, {
+                    cacheControl: "31536000",
+                    upsert: false,
+                });
             if (sndErr) {
                 error = "Errore upload suono: " + sndErr.message;
                 loading = false;
