@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
   import { animals } from './animals.js';
   import { resumeAudioContext, playRewardSound } from './audioUtils.js';
@@ -20,8 +20,8 @@
 
   function calcSize(l, vw, vh) {
     const m = Math.min(vw, vh);
-    const minS = m * 0.08;
-    const maxS = m * 0.33;
+    const minS = m * 0.24;
+    const maxS = m * 0.70;
     const t = (l - 1) / (MAX_LEVEL - 1);
     return maxS - (maxS - minS) * t;
   }
@@ -51,7 +51,21 @@
     pickAnimal();
     setup();
     window.addEventListener('resize', setup);
-    return () => window.removeEventListener('resize', setup);
+    function preventGestures(e) {
+      if (e.touches && e.touches.length > 1) e.preventDefault();
+    }
+    function preventGestureStart(e) { e.preventDefault(); }
+    document.addEventListener('gesturestart', preventGestureStart);
+    document.addEventListener('touchmove', preventGestures, { passive: false });
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    return () => {
+      window.removeEventListener('resize', setup);
+      document.removeEventListener('gesturestart', preventGestureStart);
+      document.removeEventListener('touchmove', preventGestures);
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
   });
 
   async function tap() {
@@ -75,6 +89,10 @@
     setup();
   }
 </script>
+
+<svelte:head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+</svelte:head>
 
 <main class="game-area" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
   {#if done}
@@ -125,7 +143,7 @@
     height: 100vh;
     overflow: hidden;
     position: relative;
-    touch-action: manipulation;
+    touch-action: none;
     user-select: none;
     -webkit-user-select: none;
   }

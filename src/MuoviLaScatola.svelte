@@ -24,8 +24,8 @@
 
   function calcSize(l, vw, vh) {
     const m = Math.min(vw, vh);
-    const minS = m * 0.08;
-    const maxS = m * 0.33;
+    const minS = m * 0.24;
+    const maxS = m * 0.70;
     const t = (l - 1) / (MAX_LEVEL - 1);
     return maxS - (maxS - minS) * t;
   }
@@ -41,12 +41,20 @@
     winW = window.innerWidth;
     winH = window.innerHeight;
     size = calcSize(level, winW, winH);
-    const bp = randomPos(size, winW, winH);
-    boxX = bp.x;
-    boxY = bp.y;
-    const hp = randomPos(size, winW, winH);
-    houseX = hp.x;
-    houseY = hp.y;
+    const pad = 10;
+    const roomX = winW - size - pad * 2;
+    const roomY = winH - size - pad * 2;
+    if (roomX < size * 2 && roomY < size * 2) {
+      boxX = pad;
+      boxY = pad;
+      houseX = Math.max(winW - size - pad, pad);
+      houseY = Math.max(winH - size - pad, pad);
+    } else {
+      boxX = Math.random() * Math.max(roomX, 0) + pad;
+      boxY = Math.random() * Math.max(roomY, 0) + pad;
+      houseX = Math.random() * Math.max(roomX, 0) + pad;
+      houseY = Math.random() * Math.max(roomY, 0) + pad;
+    }
   }
 
   function pickAnimal() {
@@ -58,7 +66,40 @@
     pickAnimal();
     setup();
     window.addEventListener('resize', setup);
-    return () => window.removeEventListener('resize', setup);
+
+    function onDocTouchMove(e) {
+      if (e.touches && e.touches.length > 1) { e.preventDefault(); return; }
+      if (dragging) {
+        e.preventDefault();
+        const t = e.touches[0];
+        moveDrag(t.clientX, t.clientY);
+      }
+    }
+    function onDocTouchEnd() {
+      endDrag();
+    }
+    function onDocMouseMove(e) {
+      moveDrag(e.clientX, e.clientY);
+    }
+    function onDocMouseUp() {
+      endDrag();
+    }
+    function preventGestureStart(e) { e.preventDefault(); }
+
+    document.addEventListener('gesturestart', preventGestureStart);
+    document.addEventListener('touchmove', onDocTouchMove, { passive: false });
+    document.addEventListener('touchend', onDocTouchEnd);
+    document.addEventListener('mousemove', onDocMouseMove);
+    document.addEventListener('mouseup', onDocMouseUp);
+
+    return () => {
+      window.removeEventListener('resize', setup);
+      document.removeEventListener('gesturestart', preventGestureStart);
+      document.removeEventListener('touchmove', onDocTouchMove);
+      document.removeEventListener('touchend', onDocTouchEnd);
+      document.removeEventListener('mousemove', onDocMouseMove);
+      document.removeEventListener('mouseup', onDocMouseUp);
+    };
   });
 
   function startDrag(clientX, clientY) {
@@ -100,27 +141,9 @@
     startDrag(e.clientX, e.clientY);
   }
 
-  function onMouseMove(e) {
-    moveDrag(e.clientX, e.clientY);
-  }
-
-  function onMouseUp() {
-    endDrag();
-  }
-
   function onTouchStart(e) {
     const t = e.touches[0];
     startDrag(t.clientX, t.clientY);
-  }
-
-  function onTouchMove(e) {
-    e.preventDefault();
-    const t = e.touches[0];
-    moveDrag(t.clientX, t.clientY);
-  }
-
-  function onTouchEnd() {
-    endDrag();
   }
 
   function restart() {
@@ -130,6 +153,10 @@
     setup();
   }
 </script>
+
+<svelte:head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+</svelte:head>
 
 <main class="game-area" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
   {#if done}
@@ -165,7 +192,7 @@
         top: {boxY}px;
       "
       on:mousedown={onMouseDown}
-      on:mouseup={onMouseUp}
+      on:touchstart|preventDefault={onTouchStart}
       on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') endDrag(); }}
     >
       {#if animal}
@@ -187,13 +214,7 @@
   {/if}
 </main>
 
-<!-- svelte-ignore a11y-no-static-element-interactions -->
-<svelte:window
-  on:mousemove={onMouseMove}
-  on:mouseup={onMouseUp}
-  on:touchmove={onTouchMove}
-  on:touchend={onTouchEnd}
-/>
+
 
 <style>
   .game-area {
