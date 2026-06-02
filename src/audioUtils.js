@@ -262,6 +262,45 @@ export function triggerVibration(duration = 50) {
     }
 }
 
+/**
+ * Plays a cheerful ascending reward jingle (yuppi sound).
+ * Used by games to reward successful touches.
+ */
+export function playRewardSound() {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+        ctx.resume();
+    }
+
+    const now = ctx.currentTime;
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.25, now);
+    masterGain.gain.setValueAtTime(0.25, now + 1.2);
+    masterGain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+    masterGain.connect(ctx.destination);
+
+    const notes = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51];
+    const gap = 0.12;
+
+    notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + i * gap);
+
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, now + i * gap);
+        g.gain.linearRampToValueAtTime(0.3, now + i * gap + 0.02);
+        g.gain.setValueAtTime(0.3, now + i * gap + 0.1);
+        g.gain.exponentialRampToValueAtTime(0.001, now + i * gap + 0.4);
+
+        osc.connect(g);
+        g.connect(masterGain);
+        osc.start(now + i * gap);
+        osc.stop(now + i * gap + 0.4);
+    });
+}
+
 // Synthesis engine for 20 musical instruments
 let cachedNoiseBuffer = null;
 function createNoiseBuffer(ctx) {

@@ -131,6 +131,14 @@
                 <div class="name">Cantastorie</div>
                 <div class="description">Storie interattive</div>
             </button>
+
+            <button class="card enabled" on:click={() => selectMode("games")} in:fly={{ y: 50, duration: 600, delay: 450 }}>
+                <div class="icon-container">
+                    <div class="emoji-icon">🎮</div>
+                </div>
+                <div class="name">Giochi</div>
+                <div class="description">Giochi semplici</div>
+            </button>
         </div>
     </div>
 </main>

@@ -23,6 +23,7 @@
   import { instruments } from "./instruments.js";
   import StoryView from "./StoryView.svelte";
   import StorySelect from "./StorySelect.svelte";
+  import GamesView from "./GamesView.svelte";
   import InfoView from "./InfoView.svelte";
   import {
     getAnimalName,
@@ -209,6 +210,8 @@
       currentView = "sentences";
     } else if (path === "/instruments") {
       currentView = "instruments";
+    } else if (path === "/gameshub") {
+      currentView = "gameshub";
     } else if (path === "/info") {
       currentView = "info";
     } else {
@@ -232,6 +235,7 @@
     else if (view === "games") path = "/games";
     else if (view === "sentences") path = "/sentences";
     else if (view === "instruments") path = "/instruments";
+    else if (view === "gameshub") path = "/gameshub";
     else if (view === "userCategory" && userCat)
       path = `/category/${userCat.id}`;
     else if (view === "info") path = "/info";
@@ -248,6 +252,8 @@
     const mode = event.detail;
     if (mode === "stories") {
       navigate("stories");
+    } else if (mode === "games") {
+      navigate("gameshub");
     } else {
       selectedCardMode = mode;
       settingsStore.updateSettings({ cardMode: mode }, currentUser?.id);
@@ -453,6 +459,10 @@
     on:setNavMode={(e) =>
       settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
+  />
+{:else if currentView === "gameshub"}
+  <GamesView
+    on:back={handleBackToMode}
   />
 {:else if currentView === "stories"}
   <StorySelect
