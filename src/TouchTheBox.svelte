@@ -108,7 +108,8 @@
       class="box"
       role="button"
       tabindex="0"
-      on:click={tap}
+      on:mousedown|preventDefault={tap}
+      on:touchstart|preventDefault={tap}
       on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') tap(); }}
       style="
         width: {size}px;
