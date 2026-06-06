@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import { createEventDispatcher } from 'svelte';
   import { animals } from './animals.js';
-  import { resumeAudioContext, playRewardSound } from './audioUtils.js';
+  import { resumeAudioContext, playRewardSound, playVictorySound } from './audioUtils.js';
+  import { user } from './authStore.js';
+  import { getBestTime, saveBestTime } from './gameStats.js';
   import { fly } from 'svelte/transition';
 
   const dispatch = createEventDispatcher();
@@ -21,6 +23,40 @@
   let dragging = false;
   let dragOffsetX = 0;
   let dragOffsetY = 0;
+  let started = false;
+  let startTime = 0;
+  let elapsed = 0;
+  let totalTime = 0;
+  let timerInterval = null;
+  let bestTime = null;
+  let isNewRecord = false;
+  let currentUser;
+
+  user.subscribe(v => currentUser = v);
+
+  function formatTime(ms) {
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  }
+
+  function startTimer() {
+    if (started) return;
+    started = true;
+    startTime = Date.now();
+    timerInterval = setInterval(() => {
+      elapsed = Date.now() - startTime;
+    }, 200);
+  }
+
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+    totalTime = elapsed;
+  }
 
   function calcSize(l, vw, vh) {
     const m = Math.min(vw, vh);
@@ -103,6 +139,7 @@
   });
 
   function startDrag(clientX, clientY) {
+    startTimer();
     dragging = true;
     dragOffsetX = clientX - boxX;
     dragOffsetY = clientY - boxY;
@@ -114,7 +151,7 @@
     boxY = clientY - dragOffsetY;
   }
 
-  function endDrag() {
+  async function endDrag() {
     if (!dragging) return;
     dragging = false;
     const margin = size * 0.3;
@@ -128,6 +165,18 @@
       resumeAudioContext();
       playRewardSound();
       if (level >= MAX_LEVEL) {
+        stopTimer();
+        isNewRecord = false;
+        if (currentUser) {
+          const prev = await getBestTime(currentUser.id, 'muovilascatola');
+          bestTime = prev;
+          if (prev === null || totalTime < prev) {
+            isNewRecord = true;
+            await saveBestTime(currentUser.id, 'muovilascatola', totalTime);
+            bestTime = totalTime;
+            playVictorySound();
+          }
+        }
         done = true;
       } else {
         level++;
@@ -149,6 +198,11 @@
   function restart() {
     level = 1;
     done = false;
+    started = false;
+    elapsed = 0;
+    totalTime = 0;
+    bestTime = null;
+    isNewRecord = false;
     pickAnimal();
     setup();
   }
@@ -164,6 +218,13 @@
       <div class="star">⭐</div>
       <h1>Complimenti!</h1>
       <p>Hai completato tutti i {MAX_LEVEL} livelli!</p>
+      <p class="time">Tempo: {formatTime(totalTime)}</p>
+      {#if bestTime !== null}
+        <p class="time best">Record: {formatTime(bestTime)}</p>
+      {/if}
+      {#if isNewRecord}
+        <p class="new-record">Nuovo Record! 🎉</p>
+      {/if}
       <button class="btn" on:click={restart}>Gioca ancora</button>
       <button class="btn secondary" on:click={() => dispatch('back')}>Indietro</button>
     </div>
@@ -210,6 +271,7 @@
         ←
       </button>
       <div class="level">Livello {level}/{MAX_LEVEL}</div>
+      <div class="timer">{formatTime(elapsed)}</div>
     </div>
   {/if}
 </main>
@@ -327,6 +389,17 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 
+  .timer {
+    pointer-events: auto;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 15px;
+    padding: 0.6rem 1.2rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #667eea;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
   .celebration {
     position: absolute;
     inset: 0;
@@ -360,6 +433,28 @@
     font-size: 1.3rem;
     margin: 0;
     opacity: 0.9;
+  }
+
+  .celebration .time {
+    font-size: 2rem;
+    font-weight: bold;
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.5rem 1.5rem;
+    border-radius: 15px;
+  }
+
+  .celebration .time.best {
+    background: rgba(255, 215, 0, 0.3);
+    border: 2px solid rgba(255, 215, 0, 0.5);
+  }
+
+  .new-record {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #ffd700;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    animation: bounce 0.5s ease infinite alternate;
   }
 
   .btn {

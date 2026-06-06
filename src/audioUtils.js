@@ -301,6 +301,56 @@ export function playRewardSound() {
     });
 }
 
+/**
+ * Plays a celebratory victory fanfare when the user beats their record.
+ * Longer and more elaborate than the regular reward sound.
+ */
+export function playVictorySound() {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+        ctx.resume();
+    }
+
+    const now = ctx.currentTime;
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.3, now);
+    masterGain.gain.setValueAtTime(0.3, now + 1.8);
+    masterGain.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+    masterGain.connect(ctx.destination);
+
+    const melody = [
+        { freq: 523.25, time: 0 },
+        { freq: 659.25, time: 0.15 },
+        { freq: 783.99, time: 0.3 },
+        { freq: 1046.50, time: 0.5 },
+        { freq: 783.99, time: 0.7 },
+        { freq: 1046.50, time: 0.85 },
+        { freq: 1174.66, time: 1.0 },
+        { freq: 1318.51, time: 1.2 },
+        { freq: 1046.50, time: 1.4 },
+        { freq: 1318.51, time: 1.55 },
+        { freq: 1567.98, time: 1.7 },
+    ];
+
+    melody.forEach(({ freq, time }) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + time);
+
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, now + time);
+        g.gain.linearRampToValueAtTime(0.3, now + time + 0.02);
+        g.gain.setValueAtTime(0.3, now + time + 0.15);
+        g.gain.exponentialRampToValueAtTime(0.001, now + time + 0.5);
+
+        osc.connect(g);
+        g.connect(masterGain);
+        osc.start(now + time);
+        osc.stop(now + time + 0.5);
+    });
+}
+
 // Synthesis engine for 20 musical instruments
 let cachedNoiseBuffer = null;
 function createNoiseBuffer(ctx) {
