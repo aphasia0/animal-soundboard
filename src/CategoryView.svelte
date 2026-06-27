@@ -1033,7 +1033,7 @@
         {/if}
 
         {#if showPlaybackPicker}
-            <div class="color-picker-popup" style="min-width:300px">
+            <div class="color-picker-popup" style="min-width:300px; max-height:85dvh; overflow-y:auto;">
                 <div class="color-picker-title">▶ Modalità Gioco</div>
                 <div class="playback-options">
                     <button
