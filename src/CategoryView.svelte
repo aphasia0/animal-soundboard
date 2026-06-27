@@ -200,7 +200,7 @@
             stopAllAutoplay();
         }
         // Singolo Click always uses sound duration — force maxTimeMs to auto
-        const extra = mode === "once" ? { maxTimeMs: "auto" } : {};
+        const extra = (mode === "once" || mode === "select_and_listen") ? { maxTimeMs: "auto" } : {};
         await settingsStore.updateSettings(
             { playbackMode: mode, ...extra },
             currentUser?.id,
@@ -375,7 +375,7 @@
             return;
         }
 
-        if (playbackMode === "once") {
+        if (playbackMode === "once" || playbackMode === "select_and_listen") {
             if (isPressed) {
                 isPressed = false;
                 stopAudio();
@@ -407,7 +407,7 @@
     }
     function handlePressEnd() {
         if (!isPressed) return;
-        if (playbackMode === "autoplay" || playbackMode === "once") return; // autoplay/once ignores release
+        if (playbackMode === "autoplay" || playbackMode === "once" || playbackMode === "select_and_listen") return;
         isPressed = false;
         accumulatedTime += Date.now() - pressStartTime;
         const offset = stopAudio();
@@ -440,7 +440,7 @@
                     playAudio(displayItem.sound, 0);
                 }
                 animationFrameId = requestAnimationFrame(updateProgress);
-            } else if (playbackMode === "once") {
+            } else if (playbackMode === "once" || playbackMode === "select_and_listen") {
                 // One-shot playback completed - advance to next card if not locked
                 isPressed = false;
                 stopAudio();
@@ -723,18 +723,14 @@
         if (playbackMode === "select_and_listen" && cardMode === 1 && !$isModalOpen) {
             if (e.code === "KeyA") {
                 next();
-                const item = items[currentIndex];
-                resumeAudioContext();
-                playAudio(item?.sound, 0);
-                speakName(item?.name ?? '');
+                speakName(items[currentIndex]?.name ?? '');
                 return;
             }
             if (e.code === "Space") {
                 const tag = e.target.tagName;
                 if (tag !== 'INPUT' && tag !== 'BUTTON' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
                     e.preventDefault();
-                    resumeAudioContext();
-                    playAudio(items[currentIndex]?.sound, 0);
+                    await handlePressStart();
                     return;
                 }
             }
@@ -1165,7 +1161,7 @@
                 <div class="time-options">
                     <div class="time-label">Tempo max:</div>
                     <div class="time-buttons">
-                        {#if playbackMode === "once"}
+                        {#if playbackMode === "once" || playbackMode === "select_and_listen"}
                             <button class="time-btn active">auto</button>
                         {:else}
                             <button
