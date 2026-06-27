@@ -10,6 +10,7 @@ const defaultSettings = {
     secondaryColor: '#ff0000',
     maxTimeMs: 'auto',              // 'auto' uses sound duration
     playbackMode: 'once',          // 'restart' | 'resume' | 'autoplay' | 'once'
+    selectAndListen: false,
     hasSettings: false
 };
 
