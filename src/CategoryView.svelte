@@ -181,11 +181,13 @@
     user.subscribe((u) => {
         currentUser = u;
     });
+    let selectAndListen = false;
     settingsStore.subscribe((s) => {
         primaryColor = s.primaryColor || "#39ff14";
         secondaryColor = s.secondaryColor || "#ff0000";
         maxTime = s.maxTimeMs !== undefined ? s.maxTimeMs : "auto";
         playbackMode = s.playbackMode || "once";
+        selectAndListen = s.selectAndListen ?? false;
     });
 
     async function savePlaybackMode(mode) {
@@ -936,6 +938,35 @@
                     <polygon points="5 3 19 12 5 21 5 3" />
                 </svg>
             </button>
+
+            <!-- Seleziona e Ascolta toggle (solo cardMode 1) -->
+            {#if cardMode === 1}
+                <button
+                    class="palette-btn"
+                    class:active={selectAndListen}
+                    on:click={() => {
+                        triggerVibration(45);
+                        closeAllOverlays();
+                        settingsStore.updateSettings({ selectAndListen: !selectAndListen }, $user?.id);
+                    }}
+                    title="Seleziona e Ascolta"
+                    data-tooltip={selectAndListen ? "Seleziona e Ascolta: ON" : "Seleziona e Ascolta: OFF"}
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        width="26"
+                        height="26"
+                    >
+                        <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+                    </svg>
+                </button>
+            {/if}
 
             <!-- Card Selector (Icon Only) -->
             <button
