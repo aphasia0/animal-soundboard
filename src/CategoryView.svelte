@@ -1140,7 +1140,7 @@
                     </button>
 
                     <button
-                        class="playback-opt-btn"
+                        class="playback-opt-btn select-listen-btn"
                         class:active={playbackMode === "select_and_listen"}
                         on:click={() => savePlaybackMode("select_and_listen")}
                     >
@@ -1736,6 +1736,10 @@
     }
     .playback-opt-btn.active small {
         opacity: 0.9;
+    }
+    .select-listen-btn.active {
+        border-color: #0ea5e9;
+        background: #0ea5e9;
     }
     .time-options {
         margin-top: 1rem;
