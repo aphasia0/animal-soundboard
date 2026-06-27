@@ -473,6 +473,14 @@
         else currentIndex = (currentIndex + 1) % items.length;
     }
 
+    function speakName(text) {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'it-IT';
+        window.speechSynthesis.speak(utterance);
+    }
+
     // ─── Dual card A ───────────────────────────────────────────────────────────
     async function handlePressStartA() {
         if ($isModalOpen) return;
@@ -714,6 +722,22 @@
     // Keyboard support
     async function handleKeyDown(e) {
         if (e.repeat) return;
+        if (selectAndListen && cardMode === 1 && !$isModalOpen) {
+            if (e.code === "KeyA") {
+                next();
+                speakName(displayItem?.name ?? '');
+                return;
+            }
+            if (e.code === "Space") {
+                const tag = e.target.tagName;
+                if (tag !== 'INPUT' && tag !== 'BUTTON' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+                    e.preventDefault();
+                    resumeAudioContext();
+                    playAudio(displayItem?.sound, 0);
+                    return;
+                }
+            }
+        }
         if (cardMode === 1) {
             if (e.code === "Space" || e.code === "KeyA")
                 await handlePressStart();
@@ -723,6 +747,7 @@
         }
     }
     function handleKeyUp(e) {
+        if (selectAndListen && cardMode === 1) return;
         if (cardMode === 1) {
             if (e.code === "Space" || e.code === "KeyA") handlePressEnd();
         } else {
