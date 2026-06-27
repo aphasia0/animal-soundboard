@@ -964,35 +964,6 @@
                 </svg>
             </button>
 
-            <!-- Seleziona e Ascolta toggle (solo cardMode 1) -->
-            {#if cardMode === 1}
-                <button
-                    class="palette-btn"
-                    class:active={selectAndListen}
-                    on:click={() => {
-                        triggerVibration(45);
-                        closeAllOverlays();
-                        settingsStore.updateSettings({ selectAndListen: !selectAndListen }, $user?.id);
-                    }}
-                    title="Seleziona e Ascolta"
-                    data-tooltip={selectAndListen ? "Seleziona e Ascolta: ON" : "Seleziona e Ascolta: OFF"}
-                >
-                    <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        width="26"
-                        height="26"
-                    >
-                        <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
-                        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
-                    </svg>
-                </button>
-            {/if}
-
             <!-- Card Selector (Icon Only) -->
             <button
                 class="palette-btn"
@@ -1163,6 +1134,36 @@
                             >
                         </div>
                     </button>
+
+                    {#if cardMode === 1}
+                        <button
+                            class="playback-opt-btn"
+                            class:active={selectAndListen}
+                            on:click={() => {
+                                triggerVibration(45);
+                                settingsStore.updateSettings({ selectAndListen: !selectAndListen }, $user?.id);
+                            }}
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                width="24"
+                                height="24"
+                            >
+                                <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+                            </svg>
+                            <div>
+                                <strong>Seleziona e Ascolta</strong><br /><small
+                                    >A = avanti + leggi, Spazio = suono</small
+                                >
+                            </div>
+                        </button>
+                    {/if}
                 </div>
 
                 <div class="time-options">
