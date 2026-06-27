@@ -181,13 +181,11 @@
     user.subscribe((u) => {
         currentUser = u;
     });
-    let selectAndListen = false;
     settingsStore.subscribe((s) => {
         primaryColor = s.primaryColor || "#39ff14";
         secondaryColor = s.secondaryColor || "#ff0000";
         maxTime = s.maxTimeMs !== undefined ? s.maxTimeMs : "auto";
         playbackMode = s.playbackMode || "once";
-        selectAndListen = s.selectAndListen ?? false;
     });
 
     async function savePlaybackMode(mode) {
@@ -722,10 +720,13 @@
     // Keyboard support
     async function handleKeyDown(e) {
         if (e.repeat) return;
-        if (selectAndListen && cardMode === 1 && !$isModalOpen) {
+        if (playbackMode === "select_and_listen" && cardMode === 1 && !$isModalOpen) {
             if (e.code === "KeyA") {
                 next();
-                speakName(displayItem?.name ?? '');
+                const item = items[currentIndex];
+                resumeAudioContext();
+                playAudio(item?.sound, 0);
+                speakName(item?.name ?? '');
                 return;
             }
             if (e.code === "Space") {
@@ -733,7 +734,7 @@
                 if (tag !== 'INPUT' && tag !== 'BUTTON' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
                     e.preventDefault();
                     resumeAudioContext();
-                    playAudio(displayItem?.sound, 0);
+                    playAudio(items[currentIndex]?.sound, 0);
                     return;
                 }
             }
@@ -747,7 +748,7 @@
         }
     }
     function handleKeyUp(e) {
-        if (selectAndListen && cardMode === 1) return;
+        if (playbackMode === "select_and_listen" && cardMode === 1) return;
         if (cardMode === 1) {
             if (e.code === "Space" || e.code === "KeyA") handlePressEnd();
         } else {
@@ -1137,11 +1138,8 @@
 
                     <button
                         class="playback-opt-btn"
-                        class:active={selectAndListen}
-                        on:click={() => {
-                            triggerVibration(45);
-                            settingsStore.updateSettings({ selectAndListen: !selectAndListen }, $user?.id);
-                        }}
+                        class:active={playbackMode === "select_and_listen"}
+                        on:click={() => savePlaybackMode("select_and_listen")}
                     >
                         <svg
                             viewBox="0 0 24 24"
