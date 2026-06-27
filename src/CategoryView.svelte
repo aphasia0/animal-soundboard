@@ -440,7 +440,14 @@
                     playAudio(displayItem.sound, 0);
                 }
                 animationFrameId = requestAnimationFrame(updateProgress);
-            } else if (playbackMode === "once" || playbackMode === "select_and_listen") {
+            } else if (playbackMode === "select_and_listen") {
+                // One-shot completed — stay on same card, Space replays
+                isPressed = false;
+                stopAudio();
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                progress = 0;
+                accumulatedTime = 0;
+            } else if (playbackMode === "once") {
                 // One-shot playback completed - advance to next card if not locked
                 isPressed = false;
                 stopAudio();
