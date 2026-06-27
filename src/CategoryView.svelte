@@ -944,6 +944,7 @@
                     playbackMode === "autoplay_loop"}
                 class:playback-resume={playbackMode === "resume"}
                 class:playback-restart={playbackMode === "restart"}
+                class:playback-select-listen={playbackMode === "select_and_listen"}
                 on:click={() => { closeAllOverlays(); showPlaybackPicker = !showPlaybackPicker; }}
                 title="Modalità riproduzione"
                 data-tooltip="Modalità riproduzione"
@@ -1696,6 +1697,10 @@
     }
     .palette-btn.playback-restart {
         background: #d99ea1; /* yellow/amber — restart mode */
+        color: white;
+    }
+    .palette-btn.playback-select-listen {
+        background: #0ea5e9;
         color: white;
     }
     /* Playback mode popup options */
