@@ -729,6 +729,13 @@
         if (e.repeat) return;
         if (playbackMode === "select_and_listen" && cardMode === 1 && !$isModalOpen) {
             if (e.code === "KeyA") {
+                if (isPressed) {
+                    isPressed = false;
+                    stopAudio();
+                    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                    progress = 0;
+                    accumulatedTime = 0;
+                }
                 next();
                 speakName(items[currentIndex]?.name ?? '');
                 return;
