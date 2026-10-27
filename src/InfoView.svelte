@@ -3,7 +3,8 @@
     const dispatch = createEventDispatcher();
 
     const commitRef = process.env.COMMIT_REF || "";
-    const buildTs = new Date().toISOString();
+    // Injected at build time by @rollup/plugin-replace (see rollup.config.js)
+    const buildTs = __BUILD_TIME__;
 
     const commitId = commitRef;
     const buildTimestamp = buildTs 
@@ -45,18 +46,18 @@
                 immagini, progettata per l'apprendimento e il divertimento.
             </p>
 
-            {#if commitId}
             <div class="version-box">
+                {#if commitId}
                 <div class="version-row">
                     <span class="label">Commit</span>
                     <span class="value commit">{commitId.slice(0, 7)}</span>
                 </div>
+                {/if}
                 <div class="version-row">
                     <span class="label">Build</span>
                     <span class="value">{buildTimestamp}</span>
                 </div>
             </div>
-            {/if}
 
             <div class="hardware-section">
                 <h2>🎮 Controller Hardware</h2>

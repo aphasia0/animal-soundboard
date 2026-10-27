@@ -135,6 +135,7 @@
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="overlay" on:click|self={close}>
     <div class="panel">
         <div class="panel-header">

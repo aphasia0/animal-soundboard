@@ -7,35 +7,67 @@ const DOMAIN = __DOMAIN__;
 
 let client = null;
 
+/**
+ * The cookie domain has to match the host we are actually served from.
+ * A production build (DOMAIN=.antoniogiordano.dev) served on localhost would
+ * otherwise get every cookie rejected by the browser, silently losing the
+ * session right after a successful login.
+ */
+function getCookieDomain() {
+  if (typeof window === "undefined") return undefined;
+  const host = window.location.hostname;
+  const configured = String(DOMAIN || "").replace(/^\./, "");
+  if (!configured) return undefined;
+  if (host === configured || host.endsWith(`.${configured}`)) return configured;
+  return undefined;
+}
+
+function isSecureContext() {
+  return typeof window !== "undefined" && window.location.protocol === "https:";
+}
+
+function writeOptions() {
+  const options = {
+    path: "/",
+    sameSite: "Lax",
+    secure: isSecureContext(),
+    expires: 30,
+  };
+  const domain = getCookieDomain();
+  if (domain) options.domain = domain;
+  return options;
+}
+
+function removeOptions() {
+  const options = { path: "/" };
+  const domain = getCookieDomain();
+  if (domain) options.domain = domain;
+  return options;
+}
+
+const cookieStorage = {
+  getItem: (key) => {
+    const value = Cookies.get(key);
+    return value === undefined ? null : value;
+  },
+  setItem: (key, value) => {
+    Cookies.set(key, value, writeOptions());
+  },
+  removeItem: (key) => {
+    Cookies.remove(key, removeOptions());
+  },
+};
+
 export function getSupabase() {
   if (client) return client;
 
   if (typeof window !== "undefined" && window.supabase) {
     client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
-        storage: {
-          getItem: (key) => {
-            const value = Cookies.get(key);
-            console.log(`Value retrieved: ${value}`);
-            // Se non c'è, restituisci esplicitamente null, non undefined
-            return value === undefined ? null : value;
-          },
-          setItem: (key, value) => {
-            Cookies.set(key, value, {
-              domain: DOMAIN || undefined,
-              path: "/",
-              sameSite: "Lax",
-              secure: true,
-              expires: 30,
-            });
-          },
-          removeItem: (key) => {
-            Cookies.remove(key, {
-              domain: DOMAIN || undefined,
-              path: "/",
-            });
-          },
-        },
+        storage: cookieStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
       },
     });
   }

@@ -213,6 +213,7 @@
 
             {#each userCategories as ucat, i}
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                     class="card enabled user-card"
                     on:click={() => selectUserCategory(ucat)}
@@ -296,6 +297,7 @@
 <!-- Category delete confirmation -->
 {#if showDeleteCatConfirm && catToDelete}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
         class="cat-overlay"
         on:click|self={() => {

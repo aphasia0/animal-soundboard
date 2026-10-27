@@ -53,8 +53,8 @@ export default {
 			__SUPABASE_ANON_KEY__: JSON.stringify(process.env.SUPABASE_ANON_KEY || ''),
 			__TTS_URL__: JSON.stringify(process.env.TTS_URL || ''),
 			__DOMAIN__: JSON.stringify(process.env.DOMAIN || ''),
-			'process.env.COMMIT_REF || ""': JSON.stringify(process.env.COMMIT_REF || ''),
-			'new Date().toISOString()': JSON.stringify(new Date().toISOString())
+			__BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+			'process.env.COMMIT_REF || ""': JSON.stringify(process.env.COMMIT_REF || '')
 		}),
 		svelte({
 			compilerOptions: {
