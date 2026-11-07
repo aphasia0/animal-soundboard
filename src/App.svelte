@@ -127,8 +127,15 @@
   let userCards = [];
   let loadingUserCards = false;
 
-  $: if (currentView === "userCategory" && selectedUserCategory) {
-    fetchUserCards(selectedUserCategory.id);
+  // currentUser fa parte delle dipendenze: su un deep link o dopo un refresh
+  // la vista categoria viene montata prima che initAuth() abbia ripristinato
+  // la sessione. Senza questa dipendenza le card non venivano ricaricate.
+  // Inoltre le card possono essere aggiunte fuori dall'app (upload-card.js),
+  // quindi all'apertura della categoria ignoriamo la cache e rileggiamo il DB.
+  $: if (currentView === "userCategory" && selectedUserCategory && currentUser) {
+    fetchUserCards(selectedUserCategory.id, true);
+  } else if (!currentUser) {
+    userCards = [];
   }
 
   async function fetchUserCards(catId, force = false) {

@@ -12,7 +12,7 @@
   "description": "",
   "dependencies": {
     "@google-cloud/text-to-speech": "^6.4.0",
-    "@google/genai": "^1.42.0",
+    "@google/genai": "^2.32.0",
     "dotenv": "^17.3.1",
     "node-fetch": "^3.3.2"
   }

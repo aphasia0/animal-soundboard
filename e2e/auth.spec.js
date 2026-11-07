@@ -29,6 +29,52 @@ test.describe('auth modal', () => {
 });
 
 test.describe('login session', () => {
+  test('direct category reload restores the session before loading cards', async ({ page }) => {
+    const categoryId = 'b6bbbe43-4f4d-4e70-bc18-530591997121';
+    const card = {
+      id: '123e4567-e89b-12d3-a456-426614174000',
+      name: 'Card dopo refresh',
+      category_id: categoryId,
+      image_url: '/animals/lion.svg',
+      sound_url: '/sounds/lion.wav',
+      created_at: new Date().toISOString(),
+    };
+
+    await mockSupabaseAuth(page);
+    await page.route('**/rest/v1/user_cards**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([card]),
+      })
+    );
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Accedi' }).click();
+    await page.fill('input[type=email]', TEST_USER.email);
+    await page.fill('input[type=password]', 'valid-password');
+    await page.locator('.submit-btn').click();
+    await expect(page.locator('[data-tooltip="Account"]')).toBeVisible();
+
+    // Simula una cache vuota creata prima di aggiungere la card via script.
+    await page.evaluate(
+      ({ userId, catId }) => {
+        localStorage.setItem(
+          `soundpad:db-cache:v1:cards:${userId}:${catId}`,
+          JSON.stringify({ ts: Date.now(), data: [] })
+        );
+      },
+      { userId: TEST_USER.id, catId: categoryId }
+    );
+
+    await page.goto(`/category/${categoryId}`);
+    await expect(page.locator('.item-name')).toHaveText('Card dopo refresh');
+
+    await page.reload();
+    await expect(page.locator('.item-name')).toHaveText('Card dopo refresh');
+    await expect(page.getByText('Nessuna card ancora')).toHaveCount(0);
+  });
+
   test('successful login persists across reload and can log out', async ({ page, context }) => {
     await mockSupabaseAuth(page);
     await page.goto('/');
