@@ -208,10 +208,6 @@
   }
 </script>
 
-<svelte:head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-</svelte:head>
-
 <main class="game-area" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
   {#if done}
     <div class="celebration" in:fly={{ y: 80, duration: 600 }}>

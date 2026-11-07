@@ -183,7 +183,11 @@ soundpad/
 │   ├── generate-job-images.js
 │   ├── generate-music-images.js
 │   ├── generate-melodies.js
-│   └── generateStoryAssets.js
+│   ├── generateStoryAssets.js
+│   ├── upload-card.js     # CLI: analisi video, categorie, upload card
+│   └── lib/
+│       ├── analyze.js     # Pipeline: audio → OCR → frame → comandi
+│       └── ocr.swift      # OCR etichette via macOS Vision
 ├── supabase-schema.sql    # Database schema
 ├── rollup.config.js       # Build configuration
 └── package.json
@@ -226,6 +230,132 @@ node scripts/generateStoryAssets.js
 # Generate Italian TTS audio (requires macOS)
 node scripts/generate-sounds.js
 ```
+
+### CLI contenuti (categorie, card, upload)
+
+`scripts/upload-card.js` è una piccola CLI per gestire le categorie e caricare
+nuove card partendo da una clip audio + un'immagine ricavate da un video.
+Serve `ffmpeg` nel PATH e le dipendenze in `scripts/`
+(`cd scripts && npm install`). Tutti i comandi remoti richiedono
+`SUPABASE_PASSWORD` (password dell'account configurato nello script).
+
+```bash
+# Mostra id, icona, nome e numero di card delle tue categorie
+SUPABASE_PASSWORD=*** node scripts/upload-card.js categories
+SUPABASE_PASSWORD=*** node scripts/upload-card.js categories --json
+
+# Crea una categoria e ottieni il suo UUID
+SUPABASE_PASSWORD=*** node scripts/upload-card.js create-category \
+  --name "Animali" --emoji "🐾"
+
+# Elenca le card (id, nome, categoria); --category filtra una sezione
+SUPABASE_PASSWORD=*** node scripts/upload-card.js cards
+SUPABASE_PASSWORD=*** node scripts/upload-card.js cards --category "Animali"
+
+# Sposta una card in un'altra sezione (prima con --dry-run)
+SUPABASE_PASSWORD=*** node scripts/upload-card.js move-card \
+  --name "Albero" --to "Alfabeto" --dry-run
+SUPABASE_PASSWORD=*** node scripts/upload-card.js move-card \
+  --id <uuid_card> --to <uuid_categoria>
+
+# Analizza un video: trova i suoni, legge le etichette (OCR), estrae le
+# immagini e stampa i comandi di upload pronti da eseguire
+export CAT=<uuid_categoria>
+node scripts/upload-card.js analyze --input video.webm > upload.sh
+bash upload.sh
+# oppure: npm run --silent analyze -- --input video.webm > upload.sh
+
+# Rilascio locale passando direttamente il video (mp4, webm, mov…):
+# senza --image viene estratto il fotogramma centrale, quadrato 1024x1024
+node scripts/upload-card.js upload --mode local \
+  --input video.mp4 --start 12 --end 27 \
+  --name "Nome Card" --category animals
+
+# Rilascio su Supabase (--category = UUID di user_categories)
+SUPABASE_PASSWORD=*** node scripts/upload-card.js upload --mode remote \
+  --input video.mp4 --start 12 --end 27 \
+  --name "Nome Card" --category <uuid_categoria>
+
+# Puoi sempre passare un'immagine già pronta
+node scripts/upload-card.js upload --mode local \
+  --input video.mp4 --start 12 --end 27 \
+  --image frame.jpg --name "Nome Card" --category animals
+```
+
+`--input` accetta audio (m4a, mp3, wav…) e video (mp4, webm, mov…): dai video
+viene usata solo la traccia audio. `--image` è facoltativo: se manca e `--input`
+è un video, lo script estrae con ffmpeg il fotogramma a metà clip
+(`start + (end - start) / 2`) e lo ritaglia quadrato 1024×1024 con un crop
+centrale, così la card non deve tagliarlo ulteriormente. Con un input audio
+`--image` resta obbligatorio; in ogni caso deve essere un'immagine
+(jpg, png, webp, gif), non un video.
+
+#### `analyze`: da video a comandi pronti
+
+Il comando `analyze` automatizza l'analisi del video:
+
+1. trova i segmenti audio con `ffmpeg silencedetect`
+2. legge le etichette mostrate nel video con OCR (macOS Vision)
+3. raggruppa i suoni per etichetta (gestisce clacson e campanelli)
+4. estrae e ritaglia un'immagine 1024×1024 per ogni veicolo
+5. stampa su **stdout** un comando `upload` per ogni card
+
+I log e la tabella riepilogativa vanno su **stderr**, quindi l'output è
+redirigibile e direttamente eseguibile:
+
+```bash
+export SUPABASE_PASSWORD=***
+export CAT=<uuid_categoria>
+
+node scripts/upload-card.js analyze --input video.webm > upload.sh
+cat upload.sh     # controlla i comandi
+bash upload.sh
+```
+
+Opzioni principali: `--out <dir>` (default `<video>-cards`), `--category <uuid>`,
+`--frame-offset <sec>` (default 4), `--lang it|en`, `--no-ocr`, `--json`.
+
+L'OCR è opzionale: richiede macOS con Xcode Command Line Tools. Senza OCR
+(`--no-ocr` o sistema non macOS) i suoni vengono comunque rilevati e
+raggruppati, ma i nomi diventano `Veicolo 1`, `Veicolo 2`, ecc.
+
+#### `cards` e `move-card`: gestire le card esistenti
+
+`cards` elenca le card con UUID, nome e categoria; serve a trovare l'UUID da
+usare con `move-card`.
+
+```bash
+SUPABASE_PASSWORD=*** node scripts/upload-card.js cards
+SUPABASE_PASSWORD=*** node scripts/upload-card.js cards --category "Veicoli"
+SUPABASE_PASSWORD=*** node scripts/upload-card.js cards --json
+```
+
+`move-card` cambia la categoria di una card: aggiorna solo `category_id`, audio
+e immagine restano dove sono (nessun nuovo upload).
+
+```bash
+# Per nome: confronto senza maiuscole/accenti
+SUPABASE_PASSWORD=*** node scripts/upload-card.js move-card \
+  --name "Albero" --to "Alfabeto"
+
+# Per UUID, con sezione di partenza e prova a vuoto
+SUPABASE_PASSWORD=*** node scripts/upload-card.js move-card \
+  --id <uuid_card> --from "Veicoli" --to <uuid_categoria> --dry-run
+```
+
+Se `--name` trova più card lo script elenca gli UUID e si ferma: scegline una
+con `--id` oppure usa `--all` per spostarle tutte. `--to` e `--from` accettano
+sia l'UUID sia il nome della categoria. Con `--json` stampa l'esito in JSON.
+
+Per compatibilità, i flag senza il comando valgono come `upload`:
+
+```bash
+node scripts/upload-card.js --mode local --input ... --name ... --category ...
+```
+
+Aiuto completo: `node scripts/upload-card.js help`. Flag, prerequisiti e
+troubleshooting sono documentati nell'intestazione dello script. I path in
+`--start/--end` sono relativi al file passato in `--input`.
 
 ### Build for Production
 
