@@ -123,17 +123,51 @@
         window.addEventListener("resize", checkOrientation);
         isTouchDevice =
             "ontouchstart" in window || navigator.maxTouchPoints > 0;
-
-        if (items.length > 0) {
-            resetIndices();
-        }
     });
+
+    let indicesInitialized = false;
+    let previousNavMode = cardNavMode;
+
+    function randomizeIndices() {
+        // In shuffle mode even the very first card must be random,
+        // never the first item of the list. A and B stay distinct.
+        currentIndex = getRandomIndex(-1);
+        indexA = getRandomIndex(-1);
+        indexB = items.length > 1 ? getRandomIndex(indexA) : indexA;
+    }
 
     function resetIndices() {
         if (items.length === 0) return;
-        currentIndex = 0;
-        indexA = 0;
-        indexB = items.length > 1 ? 1 : 0;
+
+        if (cardNavMode === "shuffle") {
+            randomizeIndices();
+        } else {
+            currentIndex = 0;
+            indexA = 0;
+            indexB = items.length > 1 ? 1 : 0;
+        }
+
+        indicesInitialized = true;
+    }
+
+    // Initialize as soon as items are available (they can load asynchronously
+    // for user categories).
+    $: if (items.length > 0 && !indicesInitialized) {
+        resetIndices();
+    }
+
+    // If the list becomes empty, re-arm initialization for the next load.
+    $: if (items.length === 0) {
+        indicesInitialized = false;
+    }
+
+    // If shuffle mode is enabled after mount (e.g. settings synced from
+    // Supabase), the current card must become random too.
+    $: if (cardNavMode !== previousNavMode) {
+        previousNavMode = cardNavMode;
+        if (cardNavMode === "shuffle" && items.length > 0) {
+            randomizeIndices();
+        }
     }
 
     $: if (
