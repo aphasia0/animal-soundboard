@@ -2,6 +2,7 @@
     import { createEventDispatcher, onMount } from "svelte";
     import { getSupabase } from "./supabaseClient.js";
     import { user } from "./authStore.js";
+    import { cachedQuery, dbCacheKeys } from "./dbCache.js";
     import { animals } from "./animals.js";
     import { jobs } from "./jobs.js";
     import { music } from "./music.js";
@@ -90,28 +91,33 @@
         if (currentUser) {
             const supabase = getSupabase();
             if (supabase) {
-                const { data, error } = await supabase
-                    .from("user_categories")
-                    .select("*, user_cards(*)")
-                    .eq("user_id", currentUser.id)
-                    .order("created_at", { ascending: true });
+                const customCats = await cachedQuery(
+                    dbCacheKeys.selector(currentUser.id),
+                    async () => {
+                        const { data, error } = await supabase
+                            .from("user_categories")
+                            .select("*, user_cards(*)")
+                            .eq("user_id", currentUser.id)
+                            .order("created_at", { ascending: true });
 
-                if (!error && data) {
-                    const customCats = data.map((cat) => ({
-                        id: cat.id,
-                        label: cat.name,
-                        emoji: cat.emoji || "✨",
-                        items: (cat.user_cards || []).map((card) => ({
-                            id: card.id,
-                            image: card.image_url,
-                            sound: card.sound_url,
-                            name: card.name,
-                        })),
-                        getName: (item) => item.name,
-                    }));
+                        if (error || !data) return [];
+                        return data.map((cat) => ({
+                            id: cat.id,
+                            label: cat.name,
+                            emoji: cat.emoji || "✨",
+                            items: (cat.user_cards || []).map((card) => ({
+                                id: card.id,
+                                image: card.image_url,
+                                sound: card.sound_url,
+                                name: card.name,
+                            })),
+                            getName: (item) => item.name,
+                        }));
+                    },
+                );
+
+                if (customCats && customCats.length > 0) {
                     extendedCategories = [...categories, ...customCats];
-
-                    // If current category is a custom one, make sure it's expanded
                     if (customCats.find((c) => c.id === currentCategory)) {
                         expandedId = currentCategory;
                     }

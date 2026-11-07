@@ -1,5 +1,7 @@
 <script>
     import { createEventDispatcher } from "svelte";
+    import { invalidateDbCache, getDbCacheStatus } from "./dbCache.js";
+    import { triggerVibration } from "./audioUtils.js";
     const dispatch = createEventDispatcher();
 
     const commitRef = process.env.COMMIT_REF || "";
@@ -13,6 +15,19 @@
             timeStyle: "short"
         }) 
         : "";
+
+    let cacheStatus = getDbCacheStatus();
+    let cacheClearedMessage = false;
+
+    function handleClearCache() {
+        triggerVibration(60);
+        invalidateDbCache();
+        cacheStatus = getDbCacheStatus();
+        cacheClearedMessage = true;
+        setTimeout(() => {
+            cacheClearedMessage = false;
+        }, 3000);
+    }
 
     function goBack() {
         dispatch("back");
@@ -56,6 +71,20 @@
                 <div class="version-row">
                     <span class="label">Build</span>
                     <span class="value">{buildTimestamp}</span>
+                </div>
+                <div class="version-row">
+                    <span class="label">Cache DB (1h)</span>
+                    <span class="value">
+                        {cacheStatus.count > 0 ? `${cacheStatus.count} elementi in cache` : "vuota"}
+                    </span>
+                </div>
+                <div class="cache-action-row">
+                    <button class="clear-cache-btn" on:click={handleClearCache}>
+                        🔄 Invalida Cache DB
+                    </button>
+                    {#if cacheClearedMessage}
+                        <span class="cache-cleared-text">✓ Cache svuotata!</span>
+                    {/if}
                 </div>
             </div>
 
@@ -178,6 +207,43 @@
 
     .version-row:last-child {
         margin-bottom: 0;
+    }
+
+    .cache-action-row {
+        margin-top: 1rem;
+        padding-top: 0.8rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .clear-cache-btn {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 12px;
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .clear-cache-btn:hover {
+        background: rgba(255, 255, 255, 0.35);
+        transform: translateY(-1px);
+    }
+
+    .clear-cache-btn:active {
+        transform: translateY(0);
+    }
+
+    .cache-cleared-text {
+        font-size: 0.85rem;
+        color: #4ade80;
+        font-weight: 600;
     }
 
     .label {

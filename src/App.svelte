@@ -8,6 +8,7 @@
   import AddCardModal from "./AddCardModal.svelte";
   import { initAuth, user } from "./authStore.js";
   import { getSupabase } from "./supabaseClient.js";
+  import { cachedQuery, dbCacheKeys, invalidateDbCache } from "./dbCache.js";
   import { settingsStore } from "./settingsStore.js";
   import { isModalOpen } from "./modalStore.js";
 
@@ -130,21 +131,29 @@
     fetchUserCards(selectedUserCategory.id);
   }
 
-  async function fetchUserCards(catId) {
+  async function fetchUserCards(catId, force = false) {
     loadingUserCards = true;
     const supabase = getSupabase();
-    if (supabase) {
-      const { data } = await supabase
-        .from("user_cards")
-        .select("*")
-        .eq("category_id", catId)
-        .order("created_at");
-      userCards = (data || []).map((c) => ({
-        id: c.id,
-        name: c.name,
-        image: c.image_url,
-        sound: c.sound_url,
-      }));
+    if (supabase && currentUser) {
+      userCards = await cachedQuery(
+        dbCacheKeys.cards(currentUser.id, catId),
+        async () => {
+          const { data } = await supabase
+            .from("user_cards")
+            .select("*")
+            .eq("category_id", catId)
+            .order("created_at");
+          return (data || []).map((c) => ({
+            id: c.id,
+            name: c.name,
+            image: c.image_url,
+            sound: c.sound_url,
+          }));
+        },
+        { force },
+      );
+    } else {
+      userCards = [];
     }
     loadingUserCards = false;
   }
@@ -157,8 +166,9 @@
     // Local state update
     userCards = userCards.filter((c) => c.id !== card.id);
 
-    // DB deletion
+    // DB deletion & Cache invalidation
     await supabase.from("user_cards").delete().eq("id", card.id);
+    invalidateDbCache();
 
     // Storage cleanup
     try {
@@ -322,6 +332,7 @@
   }
 
   function handleCategorySaved() {
+    invalidateDbCache();
     showAddCategoryModal = false;
     isModalOpen.set(false);
     currentView = "";
@@ -337,6 +348,7 @@
   }
 
   function handleCardSaved() {
+    invalidateDbCache();
     showAddCardModal = false;
     isModalOpen.set(false);
     const cat = selectedUserCategory;
@@ -348,9 +360,10 @@
     }, 0);
   }
   function handleCardEdited() {
+    invalidateDbCache();
     // Re-fetch cards so the updated card data is shown
     if (selectedUserCategory) {
-      fetchUserCards(selectedUserCategory.id);
+      fetchUserCards(selectedUserCategory.id, true);
     }
   }
 </script>

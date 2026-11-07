@@ -3,6 +3,7 @@
     import { createEventDispatcher } from "svelte";
     import { user, signOut } from "./authStore.js";
     import { getSupabase } from "./supabaseClient.js";
+    import { cachedQuery, dbCacheKeys, invalidateDbCache } from "./dbCache.js";
     import { animals } from "./animals.js";
     import { jobs } from "./jobs.js";
     import { music } from "./music.js";
@@ -117,32 +118,40 @@
             .eq("id", catToDelete.id);
         showDeleteCatConfirm = false;
         catToDelete = null;
-        await loadUserCategories();
+        invalidateDbCache();
+        await loadUserCategories(true);
     }
 
     onMount(() => {
         loadUserCategories();
     });
 
-    async function loadUserCategories() {
+    async function loadUserCategories(force = false) {
         if (!currentUser) {
             userCategories = [];
             return;
         }
         const supabase = getSupabase();
         if (!supabase) return;
-        const { data } = await supabase
-            .from("user_categories")
-            .select("*, user_cards(count)")
-            .eq("user_id", currentUser.id)
-            .order("created_at");
 
-        userCategories = (data || []).map((cat) => ({
-            id: cat.id,
-            name: cat.name,
-            emoji: cat.emoji,
-            cardCount: cat.user_cards?.[0]?.count || 0,
-        }));
+        userCategories = await cachedQuery(
+            dbCacheKeys.categories(currentUser.id),
+            async () => {
+                const { data } = await supabase
+                    .from("user_categories")
+                    .select("*, user_cards(count)")
+                    .eq("user_id", currentUser.id)
+                    .order("created_at");
+
+                return (data || []).map((cat) => ({
+                    id: cat.id,
+                    name: cat.name,
+                    emoji: cat.emoji,
+                    cardCount: cat.user_cards?.[0]?.count || 0,
+                }));
+            },
+            { force },
+        );
     }
 
     function selectCategory(category) {
@@ -334,7 +343,8 @@
             showEditCatModal = false;
             isModalOpen.set(false);
             catToEdit = null;
-            await loadUserCategories();
+            invalidateDbCache();
+            await loadUserCategories(true);
         }}
         on:close={() => {
             showEditCatModal = false;
