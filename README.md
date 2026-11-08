@@ -184,7 +184,7 @@ soundpad/
 │   ├── generate-music-images.js
 │   ├── generate-melodies.js
 │   ├── generateStoryAssets.js
-│   ├── upload-card.js     # CLI: analisi video, categorie, upload card
+│   ├── upload-card.js     # CLI: categorie, card, upload, video
 │   └── lib/
 │       ├── analyze.js     # Pipeline: audio → OCR → frame → comandi
 │       └── ocr.swift      # OCR etichette via macOS Vision
@@ -290,6 +290,37 @@ centrale, così la card non deve tagliarlo ulteriormente. Con un input audio
 `--image` resta obbligatorio; in ogni caso deve essere un'immagine
 (jpg, png, webp, gif), non un video.
 
+#### `video`: da categoria Supabase a video locale
+
+Crea un video locale partendo da una categoria esistente: per ogni card scarica
+immagine e audio da Supabase, genera con Google TTS la voce del nome e monta un
+segmento con l'immagine fissa; quando l'audio finisce l'immagine passa alla card
+successiva. Di default i segmenti vengono uniti in un unico MP4.
+
+```bash
+export SUPABASE_PASSWORD=***
+export GOOGLE_API_KEY=***
+
+# Un unico video con tutte le card della categoria
+node scripts/upload-card.js video --category "Animali" --out ./videos
+
+# Un video separato per ogni card
+node scripts/upload-card.js video --category "Animali" --per-card
+
+# Ordine audio inverso (prima il suono, poi il nome) e pausa tra le card
+node scripts/upload-card.js video --category "Animali" \
+  --audio-order sound-first --gap 0.4 --size 1080x1920
+```
+
+Opzioni: `--out <dir>` (default `./videos`), `--name <file>`, `--size WxH`
+(default `1080x1080`), `--fps 30`, `--order created|name`, `--audio-order
+name-first|sound-first`, `--gap <sec>`, `--voice <nome|FEMALE|MALE>`, `--lang
+it-IT`, `--limit <n>`, `--per-card`, `--tts-key <key>`.
+
+Senza `--voice` viene scelta una voce casuale una sola volta e riusata per tutte
+le card, così il video resta coerente. Le card senza immagine o audio vengono
+saltate con un avviso.
+
 #### `analyze`: da video a comandi pronti
 
 Il comando `analyze` automatizza l'analisi del video:
@@ -330,22 +361,31 @@ SUPABASE_PASSWORD=*** node scripts/upload-card.js cards --category "Veicoli"
 SUPABASE_PASSWORD=*** node scripts/upload-card.js cards --json
 ```
 
-`move-card` cambia la categoria di una card: aggiorna solo `category_id`, audio
-e immagine restano dove sono (nessun nuovo upload).
+`move-card` cambia la categoria di una o più card: aggiorna solo `category_id`,
+audio e immagine restano dove sono (nessun nuovo upload).
 
 ```bash
 # Per nome: confronto senza maiuscole/accenti
 SUPABASE_PASSWORD=*** node scripts/upload-card.js move-card \
   --name "Albero" --to "Alfabeto"
 
+# Più card in una volta (nomi separati da virgola)
+SUPABASE_PASSWORD=*** node scripts/upload-card.js move-card \
+  --names "Leone,Tigre,Orso" --to "Animali"
+
 # Per UUID, con sezione di partenza e prova a vuoto
 SUPABASE_PASSWORD=*** node scripts/upload-card.js move-card \
-  --id <uuid_card> --from "Veicoli" --to <uuid_categoria> --dry-run
+  --ids <uuid1>,<uuid2> --from "Veicoli" --to <uuid_categoria> --dry-run
+
+# Tutte le card di una categoria verso un'altra
+SUPABASE_PASSWORD=*** node scripts/upload-card.js move-card \
+  --all --from "Animali" --to "Dinosauri"
 ```
 
-Se `--name` trova più card lo script elenca gli UUID e si ferma: scegline una
-con `--id` oppure usa `--all` per spostarle tutte. `--to` e `--from` accettano
-sia l'UUID sia il nome della categoria. Con `--json` stampa l'esito in JSON.
+`--to` e `--from` accettano sia l'UUID sia il nome della categoria. Se lo stesso
+nome esiste in più categorie, lo script elenca le corrispondenze e si ferma:
+aggiungi `--from` per disambiguare oppure usa `--ids`. `--all` richiede sempre
+`--from`. Con `--json` stampa l'esito (o il piano, con `--dry-run`) in JSON.
 
 Per compatibilità, i flag senza il comando valgono come `upload`:
 

@@ -8,6 +8,7 @@
     "dev": "rollup -c -w",
     "start": "sirv public --no-clear --single",
     "cli": "node scripts/upload-card.js",
+    "video": "node scripts/upload-card.js video",
     "analyze": "node scripts/upload-card.js analyze",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",

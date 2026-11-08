@@ -83,49 +83,72 @@
 
     // Current category is expanded by default, others collapsed
     let expandedId = currentCategory;
+    let activeUserId;
+    let latestLoadId = 0;
 
-    onMount(async () => {
-        let currentUser;
-        const unsubscribe = user.subscribe((v) => (currentUser = v));
+    onMount(() => {
+        // La sessione può essere ripristinata dopo l'apertura del selettore.
+        // Restiamo iscritti per caricare le categorie appena l'utente è pronto.
+        return user.subscribe((currentUser) => {
+            const userId = currentUser?.id ?? null;
+            if (userId === activeUserId) return;
 
-        if (currentUser) {
-            const supabase = getSupabase();
-            if (supabase) {
-                const customCats = await cachedQuery(
-                    dbCacheKeys.selector(currentUser.id),
-                    async () => {
-                        const { data, error } = await supabase
-                            .from("user_categories")
-                            .select("*, user_cards(*)")
-                            .eq("user_id", currentUser.id)
-                            .order("created_at", { ascending: true });
+            activeUserId = userId;
+            const loadId = ++latestLoadId;
+            extendedCategories = [...categories];
+            expandedId = currentCategory;
 
-                        if (error || !data) return [];
-                        return data.map((cat) => ({
-                            id: cat.id,
-                            label: cat.name,
-                            emoji: cat.emoji || "✨",
-                            items: (cat.user_cards || []).map((card) => ({
-                                id: card.id,
-                                image: card.image_url,
-                                sound: card.sound_url,
-                                name: card.name,
-                            })),
-                            getName: (item) => item.name,
-                        }));
-                    },
-                );
-
-                if (customCats && customCats.length > 0) {
-                    extendedCategories = [...categories, ...customCats];
-                    if (customCats.find((c) => c.id === currentCategory)) {
-                        expandedId = currentCategory;
-                    }
-                }
-            }
-        }
-        unsubscribe();
+            if (userId) loadCustomCategories(userId, loadId);
+        });
     });
+
+    async function loadCustomCategories(userId, loadId) {
+        const supabase = getSupabase();
+        if (!supabase) return;
+
+        try {
+            const remoteCategories = await cachedQuery(
+                dbCacheKeys.selector(userId),
+                async () => {
+                    const { data, error } = await supabase
+                        .from("user_categories")
+                        .select("*, user_cards(*)")
+                        .eq("user_id", userId)
+                        .order("created_at", { ascending: true });
+
+                    // Non trasformare un errore temporaneo in una cache vuota.
+                    if (error) throw error;
+                    return (data || []).map((cat) => ({
+                        id: cat.id,
+                        label: cat.name,
+                        emoji: cat.emoji || "✨",
+                        items: (cat.user_cards || []).map((card) => ({
+                            id: card.id,
+                            image: card.image_url,
+                            sound: card.sound_url,
+                            name: card.name,
+                        })),
+                    }));
+                },
+            );
+
+            // Ignora risposte arrivate dopo logout o cambio utente.
+            if (loadId !== latestLoadId || activeUserId !== userId) return;
+
+            // JSON non conserva le funzioni: va ricreata anche per i dati in cache.
+            const customCats = (remoteCategories || []).map((cat) => ({
+                ...cat,
+                getName: (item) => item.name,
+            }));
+            extendedCategories = [...categories, ...customCats];
+            if (customCats.find((c) => c.id === currentCategory)) {
+                expandedId = currentCategory;
+            }
+        } catch (error) {
+            if (loadId !== latestLoadId || activeUserId !== userId) return;
+            console.error("Card selector categories fetch error:", error);
+        }
+    }
 
     function toggleCategory(id) {
         expandedId = expandedId === id ? null : id;

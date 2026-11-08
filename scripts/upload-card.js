@@ -7,8 +7,10 @@
  *   upload            Crea una card (audio WebM + immagine) da PROMPT o da VIDEO
  *   categories        Elenca le categorie dell'utente (id, icona, nome, n. card)
  *   cards             Elenca le card (id, nome, categoria, audio, immagine)
+ *   move-card         Sposta una o più card in un'altra categoria
  *   delete-card       Elimina una card dal Database e dai bucket Storage (card-images, card-sounds)
  *   create-category   Crea una nuova categoria e stampa il suo UUID
+ *   video             Crea un video locale da una categoria Supabase (TTS del nome + audio card)
  *   help              Mostra l'aiuto
  *
  * ── Visualizzazione e Cancellazione Card ──────────────────────────────────────
@@ -29,32 +31,50 @@
  *     --category <uuid_categoria> \
  *     --api-key <GOOGLE_API_KEY>
  *
- *   # Modalità musica (Lyria 3.5: brano completo, convertito in WebM):
+ *   # Modalità musica (Lyria 3.5: brano completo, convertito in WebM).
+ *   # Senza --seconds conserva tutta la durata generata da Lyria.
  *   node upload-card.js upload \
  *     --prompt "Una sinfonia allegra di chitarra" \
  *     --audio-mode music \
- *     --seconds 20 \
  *     --category <uuid_categoria> \
  *     --api-key <GOOGLE_API_KEY>
+ *
+ *   # Modalità effetti (ElevenLabs Sound Effects, immagine sempre Google AI).
+ *   node upload-card.js upload \
+ *     --prompt "Un tuono lontano durante un temporale" \
+ *     --audio-mode effects \
+ *     --seconds 8 \
+ *     --category <uuid_categoria> \
+ *     --api-key <GOOGLE_API_KEY> \
+ *     --elevenlabs-key <ELEVENLABS_API_KEY>
  *
  * ── Prerequisiti ─────────────────────────────────────────────────────────────
  *   - Node.js 20+
  *   - ffmpeg nel PATH (verifica con `ffmpeg -version`)
  *   - GOOGLE_API_KEY o GEMINI_API_KEY (passata come env o flag --api-key)
- *   - SUPABASE_PASSWORD per comandi remoti
+ *   - ELEVENLABS_API_KEY (o ELEVENLABS_TOKEN) per --audio-mode effects
+ *   - SUPABASE_EMAIL e SUPABASE_PASSWORD per comandi remoti
  */
 
-import { execSync } from "child_process";
-import { readFileSync, copyFileSync, mkdirSync, existsSync, unlinkSync, writeFileSync } from "fs";
+import { execSync, spawnSync } from "child_process";
+import {
+  readFileSync,
+  copyFileSync,
+  mkdirSync,
+  existsSync,
+  unlinkSync,
+  writeFileSync,
+  rmSync,
+} from "fs";
 import { tmpdir } from "os";
-import { join, extname, dirname } from "path";
+import { join, extname, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: join(__dirname, "..", ".env") });
-dotenv.config();
+dotenv.config({ path: join(__dirname, "..", ".env"), quiet: true });
+dotenv.config({ quiet: true });
 
 const PUBLIC_DIR = join(__dirname, "..", "public");
 
@@ -62,7 +82,7 @@ const PUBLIC_DIR = join(__dirname, "..", "public");
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://lkvurqiojgabbztkfjeo.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrdnVycWlvamdhYmJ6dGtmamVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NzQyOTYsImV4cCI6MjA3NDU1MDI5Nn0.kI3-oq8WDi7WknWrPLejeLetmnXo0G-TMmKT3cDY-OE";
-const EMAIL = process.env.SUPABASE_EMAIL || "tony.dream@gmail.com";
+const EMAIL = process.env.SUPABASE_EMAIL;
 const PASSWORD = process.env.SUPABASE_PASSWORD;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -70,7 +90,14 @@ const DEFAULT_EMOJI = "📁";
 const IMAGE_SIZE = 1024;
 const SAMPLE_RATE = 44100;
 const LYRIA_MODEL = "lyria-3.5";
-const DEFAULT_MUSIC_SECONDS = 20;
+const ELEVENLABS_SFX_ENDPOINT = "https://api.elevenlabs.io/v1/sound-generation";
+const ELEVENLABS_SFX_MODEL = "eleven_text_to_sound_v3";
+const ELEVENLABS_SFX_OUTPUT_FORMAT = "mp3_44100_128";
+const ELEVENLABS_SFX_MIN_SECONDS = 0.5;
+const ELEVENLABS_SFX_MAX_SECONDS = 30;
+const ELEVENLABS_SFX_TIMEOUT_MS = 240000;
+const DEFAULT_VIDEO_SIZE = "1080x1080";
+const DEFAULT_VIDEO_FPS = 30;
 const IMAGE_CONTENT_TYPES = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
@@ -78,6 +105,73 @@ const IMAGE_CONTENT_TYPES = {
   webp: "image/webp",
   gif: "image/gif",
 };
+const SENSITIVE_LOG_KEYS = new Set([
+  "api-key",
+  "api_key",
+  "apiKey",
+  "apikey",
+  "gemini-key",
+  "tts-key",
+  "google-key",
+  "elevenlabs-key",
+  "elevenlabs-token",
+  "effects-key",
+  "token",
+  "access_token",
+  "refresh_token",
+  "password",
+  "authorization",
+]);
+
+// Log diagnostici su stderr: non corrompono l'output JSON/comandi su stdout.
+function redactUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    for (const key of ["key", "api_key", "apikey", "token"]) {
+      if (url.searchParams.has(key)) url.searchParams.set(key, "[REDACTED]");
+    }
+    return url.toString();
+  } catch {
+    return String(rawUrl).replace(
+      /([?&](?:key|api_key|apikey|token)=)[^&]+/gi,
+      "$1[REDACTED]"
+    );
+  }
+}
+
+function redactForLog(value, seen = new WeakSet()) {
+  if (Buffer.isBuffer(value)) return `<binary ${value.length} bytes>`;
+  if (Array.isArray(value)) return value.map((item) => redactForLog(item, seen));
+  if (value && typeof value === "object") {
+    if (seen.has(value)) return "[Circular]";
+    seen.add(value);
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        SENSITIVE_LOG_KEYS.has(key) ? "[REDACTED]" : redactForLog(item, seen),
+      ])
+    );
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object") {
+        return redactForLog(parsed, seen);
+      }
+    } catch {
+      // Non è JSON: viene mostrato come testo.
+    }
+    if (value.length > 4000) {
+      return `${value.slice(0, 4000)}… (${value.length} caratteri)`;
+    }
+  }
+  return value;
+}
+
+function logParams(label, params) {
+  console.error(label);
+  console.error(JSON.stringify(redactForLog(params), null, 2));
+}
 
 function parseFlags(tokens) {
   const flags = {};
@@ -133,10 +227,14 @@ function parseUploadArgs(flags) {
     : null;
 
   const rawAudioMode = (flagValue(flags, "audio-mode") || flagValue(flags, "audio-type") || "voice").toLowerCase().trim();
-  const audioMode = rawAudioMode.includes("music") ? "music" : "voice";
+  const audioMode = rawAudioMode.includes("music")
+    ? "music"
+    : rawAudioMode.includes("effect") || rawAudioMode === "sfx"
+      ? "effects"
+      : "voice";
   const musicModel = flagValue(flags, "music-model") || flagValue(flags, "lyria-model") || LYRIA_MODEL;
   const rawSeconds = flagValue(flags, "seconds");
-  const seconds = rawSeconds === null ? DEFAULT_MUSIC_SECONDS : Number(rawSeconds);
+  const seconds = rawSeconds === null ? null : Number(rawSeconds);
 
   const sharedKey =
     flagValue(flags, "api-key") ||
@@ -156,6 +254,13 @@ function parseUploadArgs(flags) {
     process.env.GOOGLE_CLOUD_API_KEY ||
     sharedKey;
 
+  const elevenLabsApiKey =
+    flagValue(flags, "elevenlabs-key") ||
+    flagValue(flags, "elevenlabs-token") ||
+    flagValue(flags, "effects-key") ||
+    process.env.ELEVENLABS_API_KEY ||
+    process.env.ELEVENLABS_TOKEN;
+
   return {
     mode: flagValue(flags, "mode") || "remote", // 'local' | 'remote'
     prompt,
@@ -166,6 +271,7 @@ function parseUploadArgs(flags) {
     seconds,
     geminiApiKey,
     ttsApiKey,
+    elevenLabsApiKey,
     input: flagValue(flags, "input"),
     start: parseFloat(flagValue(flags, "start")),
     end: parseFloat(flagValue(flags, "end")),
@@ -177,9 +283,8 @@ function parseUploadArgs(flags) {
 }
 
 // ── Generazione Audio Google TTS (Voice Mode) ──────────────────────────────────
-async function generateGoogleTTS(text, apiKey) {
-  const isFemale = Math.random() < 0.5;
-  const femaleVoices = [
+const TTS_VOICES = {
+  FEMALE: [
     "it-IT-Neural2-A",
     "it-IT-Neural2-E",
     "it-IT-Wavenet-A",
@@ -187,45 +292,92 @@ async function generateGoogleTTS(text, apiKey) {
     "it-IT-Standard-A",
     "it-IT-Standard-D",
     "it-IT-Journey-F",
-  ];
-  const maleVoices = [
+  ],
+  MALE: [
     "it-IT-Neural2-C",
     "it-IT-Wavenet-B",
     "it-IT-Wavenet-C",
     "it-IT-Standard-B",
     "it-IT-Standard-C",
     "it-IT-Journey-D",
-  ];
+  ],
+};
 
-  const pool = isFemale ? femaleVoices : maleVoices;
-  const selectedVoice = pool[Math.floor(Math.random() * pool.length)];
-  const selectedGender = isFemale ? "FEMALE" : "MALE";
+function pickTtsVoice(voice) {
+  const requested = voice ? String(voice).trim() : "";
+  const gender = requested.toUpperCase();
 
-  const isJourney = selectedVoice.includes("Journey");
+  if (!requested) {
+    const randomGender = Math.random() < 0.5 ? "FEMALE" : "MALE";
+    const pool = TTS_VOICES[randomGender];
+    return {
+      name: pool[Math.floor(Math.random() * pool.length)],
+      gender: randomGender,
+    };
+  }
+
+  if (gender === "FEMALE" || gender === "MALE") {
+    const pool = TTS_VOICES[gender];
+    return {
+      name: pool[Math.floor(Math.random() * pool.length)],
+      gender,
+    };
+  }
+
+  return { name: requested, gender: null };
+}
+
+async function synthesizeGoogleTtsMp3(text, apiKey, options = {}) {
+  const {
+    voice = null,
+    pitch = null,
+    speakingRate = null,
+    languageCode = "it-IT",
+  } = options;
+
+  const selected = pickTtsVoice(voice);
+  const isJourney = selected.name.includes("Journey");
   const audioConfig = { audioEncoding: "MP3" };
 
   if (!isJourney) {
-    audioConfig.pitch = Number((Math.random() * 8.0 - 4.0).toFixed(2));
-    audioConfig.speakingRate = Number((Math.random() * 0.24 + 0.88).toFixed(2));
-    console.log(`🎤 Google TTS: Voce=${selectedVoice} (${selectedGender}), Pitch=${audioConfig.pitch}, Rate=${audioConfig.speakingRate}`);
+    audioConfig.pitch =
+      pitch === null ? Number((Math.random() * 8.0 - 4.0).toFixed(2)) : pitch;
+    audioConfig.speakingRate =
+      speakingRate === null
+        ? Number((Math.random() * 0.24 + 0.88).toFixed(2))
+        : speakingRate;
+    console.log(
+      `🎤 Google TTS: Voce=${selected.name}${
+        selected.gender ? ` (${selected.gender})` : ""
+      }, Pitch=${audioConfig.pitch}, Rate=${audioConfig.speakingRate}`
+    );
   } else {
-    console.log(`🎤 Google TTS: Voce=${selectedVoice} (${selectedGender}) [Voci Journey usano pitch/rate predefiniti]`);
+    console.log(
+      `🎤 Google TTS: Voce=${selected.name}${
+        selected.gender ? ` (${selected.gender})` : ""
+      } [Voci Journey usano pitch/rate predefiniti]`
+    );
   }
 
-  const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`;
-  const response = await fetch(url, {
+  const ttsBody = {
+    input: { text },
+    voice: {
+      languageCode,
+      name: selected.name,
+      ...(selected.gender ? { ssmlGender: selected.gender } : {}),
+    },
+    audioConfig,
+  };
+  const endpoint = "https://texttospeech.googleapis.com/v1/text:synthesize";
+  console.error(`🌐 POST ${endpoint}`);
+  logParams("   Parametri TTS:", ttsBody);
+
+  const response = await fetch(`${endpoint}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      input: { text },
-      voice: {
-        languageCode: "it-IT",
-        name: selectedVoice,
-        ssmlGender: selectedGender,
-      },
-      audioConfig,
-    }),
+    body: JSON.stringify(ttsBody),
   });
+  console.error(`   ← HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
 
   if (!response.ok) {
     const errText = await response.text();
@@ -236,13 +388,26 @@ async function generateGoogleTTS(text, apiKey) {
   if (!data.audioContent) {
     throw new Error("Risposta Google TTS priva di audioContent.");
   }
+  logParams("   Risposta TTS:", {
+    audioBytes: Buffer.byteLength(data.audioContent, "base64"),
+  });
 
-  const tmpMp3 = join(tmpdir(), `tts-${Date.now()}.mp3`);
+  const tmpMp3 = join(
+    options.dir || tmpdir(),
+    `tts-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp3`
+  );
   writeFileSync(tmpMp3, Buffer.from(data.audioContent, "base64"));
+  return tmpMp3;
+}
+
+async function generateGoogleTTS(text, apiKey) {
+  const tmpMp3 = await synthesizeGoogleTtsMp3(text, apiKey);
 
   const tmpWebm = join(tmpdir(), `card-voice-${Date.now()}.webm`);
+  const convertCommand = `ffmpeg -y -i "${tmpMp3}" -c:a libopus -b:a 64k "${tmpWebm}"`;
   console.log(`ffmpeg: converto TTS mp3 in WebM (libopus)...`);
-  execSync(`ffmpeg -y -i "${tmpMp3}" -c:a libopus -b:a 64k "${tmpWebm}"`, { stdio: "pipe" });
+  console.error(`   Comando: ${convertCommand}`);
+  execSync(convertCommand, { stdio: "pipe" });
 
   try { unlinkSync(tmpMp3); } catch {}
   return tmpWebm;
@@ -273,23 +438,28 @@ function extractLyriaOutput(interaction) {
   };
 }
 
-function convertLyriaAudioToWebm(audioBase64, mimeType, seconds) {
+function convertAudioToWebm(audioBase64, mimeType, seconds = null, source = "AI") {
   const extension = mimeType.includes("wav") ? "wav" : "mp3";
   const id = `${process.pid}-${Date.now()}`;
-  const tmpAudio = join(tmpdir(), `lyria-${id}.${extension}`);
-  const tmpWebm = join(tmpdir(), `card-lyria-${id}.webm`);
+  const tmpAudio = join(tmpdir(), `audio-${id}.${extension}`);
+  const tmpWebm = join(tmpdir(), `card-audio-${id}.webm`);
+  const durationLimit = Number.isFinite(seconds) && seconds > 0
+    ? `-af "atrim=duration=${seconds},asetpts=PTS-STARTPTS" -t ${seconds} `
+    : "";
 
   writeFileSync(tmpAudio, Buffer.from(audioBase64, "base64"));
   try {
-    // Lyria 3.5 può ignorare la durata richiesta e generare circa 60 secondi.
-    // atrim taglia i campioni audio reali, mentre -t limita anche il container.
-    console.log(`ffmpeg: converto l'audio ${extension.toUpperCase()} in WebM (libopus), massimo ${seconds} secondi...`);
-    execSync(
+    // Con --seconds taglia i campioni reali e il container; senza il flag
+    // converte l'intero audio restituito dal servizio senza rimuovere nulla.
+    const limitLabel = durationLimit ? `, massimo ${seconds} secondi` : ", senza taglio";
+    const convertCommand =
       `ffmpeg -y -i "${tmpAudio}" -vn -map 0:a:0 -map_metadata -1 ` +
-        `-af "atrim=duration=${seconds},asetpts=PTS-STARTPTS" -t ${seconds} ` +
-        `-c:a libopus -b:a 64k "${tmpWebm}"`,
-      { stdio: "pipe" }
+      `${durationLimit}-c:a libopus -b:a 64k "${tmpWebm}"`;
+    console.log(
+      `ffmpeg: converto l'audio ${extension.toUpperCase()} generato da ${source} in WebM (libopus)${limitLabel}...`
     );
+    console.error(`   Comando: ${convertCommand}`);
+    execSync(convertCommand, { stdio: "pipe" });
     return tmpWebm;
   } catch (err) {
     try { unlinkSync(tmpWebm); } catch {}
@@ -299,30 +469,47 @@ function convertLyriaAudioToWebm(audioBase64, mimeType, seconds) {
   }
 }
 
-async function generateGoogleMusic(prompt, apiKey, seconds = DEFAULT_MUSIC_SECONDS) {
+async function generateGoogleMusic(prompt, apiKey, seconds = null) {
   if (!apiKey) {
     throw new Error("API Key Google mancante per la generazione musica con Lyria.");
   }
-  if (!Number.isFinite(seconds) || seconds <= 0) {
+  const hasDurationLimit = seconds !== null && seconds !== undefined;
+  if (hasDurationLimit && (!Number.isFinite(seconds) || seconds <= 0)) {
     throw new Error("--seconds deve essere un numero maggiore di 0.");
   }
 
-  const musicPrompt = `${prompt}\n\nDurata del brano: circa ${seconds} secondi.`;
-  console.log(`🎵 Google Lyria AI: genero musica con il modello "${LYRIA_MODEL}" per "${prompt}" (${seconds} secondi)...`);
+  const musicPrompt = hasDurationLimit
+    ? `${prompt}\n\nDurata del brano: circa ${seconds} secondi.`
+    : prompt;
+  const durationLabel = hasDurationLimit ? `, ${seconds} secondi richiesti` : ", durata libera";
+  console.log(`🎵 Google Lyria AI: genero musica con il modello "${LYRIA_MODEL}" per "${prompt}"${durationLabel}...`);
+  const lyriaRequest = {
+    model: LYRIA_MODEL,
+    input: musicPrompt,
+  };
+  console.error("🌐 POST Interactions API (Lyria)");
+  logParams("   Parametri Lyria:", lyriaRequest);
 
   let interaction;
   try {
     const { GoogleGenAI } = await import("@google/genai");
     const client = new GoogleGenAI({ apiKey });
-    interaction = await client.interactions.create({
-      model: LYRIA_MODEL,
-      input: musicPrompt,
-    });
+    interaction = await client.interactions.create(lyriaRequest);
+    console.error(`   ← Interaction completata: ${interaction.status || "stato sconosciuto"}`);
   } catch (err) {
     throw new Error(`Generazione musica con Google Lyria (${LYRIA_MODEL}) fallita: ${err.message}`);
   }
 
   const { audioBase64, mimeType, text } = extractLyriaOutput(interaction);
+  logParams("   Risposta Lyria:", {
+    id: interaction.id || null,
+    model: interaction.model || LYRIA_MODEL,
+    status: interaction.status || null,
+    audioMimeType: audioBase64 ? mimeType : null,
+    audioBytes: audioBase64 ? Buffer.byteLength(audioBase64, "base64") : 0,
+    text: text || null,
+    usage: interaction.usage || null,
+  });
   if (text) {
     console.log(`📝 Dettagli / Lyrics da Lyria:\n${text}`);
   }
@@ -331,18 +518,92 @@ async function generateGoogleMusic(prompt, apiKey, seconds = DEFAULT_MUSIC_SECON
     throw new Error(`Lyria (${LYRIA_MODEL}) non ha restituito audio.${status}`);
   }
 
-  return convertLyriaAudioToWebm(audioBase64, mimeType, seconds);
+  return convertAudioToWebm(audioBase64, mimeType, seconds, "Lyria");
+}
+
+// ── Generazione Effetti (ElevenLabs Sound Effects) ────────────────────────────
+async function generateElevenLabsSoundEffect(prompt, apiKey, seconds = null) {
+  if (!apiKey) {
+    throw new Error("API Key ElevenLabs mancante per la generazione effetti.");
+  }
+  const hasDuration = seconds !== null && seconds !== undefined;
+  if (
+    hasDuration &&
+    (!Number.isFinite(seconds) ||
+      seconds < ELEVENLABS_SFX_MIN_SECONDS ||
+      seconds > ELEVENLABS_SFX_MAX_SECONDS)
+  ) {
+    throw new Error(
+      `--seconds per ElevenLabs deve essere tra ${ELEVENLABS_SFX_MIN_SECONDS} e ` +
+        `${ELEVENLABS_SFX_MAX_SECONDS} secondi.`
+    );
+  }
+
+  // La durata viene inviata solo come parametro dedicato dell'API:
+  // il prompt resta esattamente quello fornito dall'utente.
+  const requestBody = {
+    text: prompt,
+    model_id: ELEVENLABS_SFX_MODEL,
+    prompt_influence: 0.3,
+  };
+  if (hasDuration) requestBody.duration_seconds = seconds;
+
+  const url = `${ELEVENLABS_SFX_ENDPOINT}?output_format=${ELEVENLABS_SFX_OUTPUT_FORMAT}`;
+  const durationLabel = hasDuration ? `${seconds} secondi` : "automatica";
+  console.log(`🔊 ElevenLabs Sound Effects: genero l'effetto (${durationLabel})...`);
+  console.error(`🌐 POST ${ELEVENLABS_SFX_ENDPOINT}?output_format=${ELEVENLABS_SFX_OUTPUT_FORMAT}`);
+  logParams("   Parametri ElevenLabs:", requestBody);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(ELEVENLABS_SFX_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw new Error(`Richiesta ElevenLabs fallita: ${err.message}`);
+  }
+  console.error(`   ← HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`ElevenLabs Sound Effects fallito (${response.status}): ${errText}`);
+  }
+
+  const contentType = response.headers.get("content-type") || "audio/mpeg";
+  const audioBuffer = Buffer.from(await response.arrayBuffer());
+  if (audioBuffer.length === 0) {
+    throw new Error("ElevenLabs non ha restituito audio.");
+  }
+  logParams("   Risposta ElevenLabs:", {
+    contentType,
+    audioBytes: audioBuffer.length,
+    requestedDurationSeconds: hasDuration ? seconds : null,
+  });
+
+  return convertAudioToWebm(
+    audioBuffer.toString("base64"),
+    contentType,
+    seconds,
+    "ElevenLabs"
+  );
 }
 
 // ── Generazione Immagine Google AI (Gemini / Imagen) ───────────────────────────
 function cropAndResizeSquare(inputImgPath) {
   const tmpSquare = join(tmpdir(), `card-img-square-${Date.now()}.jpg`);
-  console.log(`ffmpeg: ridimensiono e ritaglio l'immagine in ${IMAGE_SIZE}x${IMAGE_SIZE}...`);
-  execSync(
+  const cropCommand =
     `ffmpeg -y -i "${inputImgPath}" -q:v 2 ` +
-      `-vf "scale=${IMAGE_SIZE}:${IMAGE_SIZE}:force_original_aspect_ratio=increase:flags=lanczos,crop=${IMAGE_SIZE}:${IMAGE_SIZE}" "${tmpSquare}"`,
-    { stdio: "pipe" }
-  );
+    `-vf "scale=${IMAGE_SIZE}:${IMAGE_SIZE}:force_original_aspect_ratio=increase:flags=lanczos,crop=${IMAGE_SIZE}:${IMAGE_SIZE}" "${tmpSquare}"`;
+  console.log(`ffmpeg: ridimensiono e ritaglio l'immagine in ${IMAGE_SIZE}x${IMAGE_SIZE}...`);
+  console.error(`   Comando: ${cropCommand}`);
+  execSync(cropCommand, { stdio: "pipe" });
   try { unlinkSync(inputImgPath); } catch {}
   return tmpSquare;
 }
@@ -354,8 +615,7 @@ async function generateGoogleImage(prompt, apiKey) {
   try {
     const { GoogleGenAI } = await import("@google/genai");
     const ai = new GoogleGenAI({ apiKey });
-
-    const response = await ai.models.generateContent({
+    const imageRequest = {
       model: "gemini-3.1-flash-image-preview",
       contents: `A cute, colorful children's illustration for an AAC card: ${prompt}. Clean background, bright friendly style, no text.`,
       config: {
@@ -364,13 +624,22 @@ async function generateGoogleImage(prompt, apiKey) {
           imageSize: "1K",
         },
       },
-    });
+    };
+    console.error("🌐 POST generateContent (immagine SDK)");
+    logParams("   Parametri immagine:", imageRequest);
+
+    const response = await ai.models.generateContent(imageRequest);
 
     const candidate = response.candidates?.[0];
+    console.error(`   ← Candidati immagine: ${response.candidates?.length || 0}`);
     if (candidate?.content?.parts) {
       for (const part of candidate.content.parts) {
         if (part.inlineData && part.inlineData.data) {
           const imgBuf = Buffer.from(part.inlineData.data, "base64");
+          logParams("   Risposta immagine:", {
+            mimeType: part.inlineData.mimeType || null,
+            imageBytes: imgBuf.length,
+          });
           const tmpImg = join(tmpdir(), `card-gen-${Date.now()}.jpg`);
           writeFileSync(tmpImg, imgBuf);
           return cropAndResizeSquare(tmpImg);
@@ -382,19 +651,24 @@ async function generateGoogleImage(prompt, apiKey) {
   }
 
   // 2. Fallback via Imagen 3 REST API endpoint
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key=${apiKey}`;
-  const response = await fetch(url, {
+  const imagenEndpoint =
+    "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages";
+  const imagenBody = {
+    prompt: `A cute, colorful children's book illustration for an AAC card: ${prompt}. Friendly artwork, simple clean background, no text.`,
+    config: {
+      numberOfImages: 1,
+      aspectRatio: "1:1",
+      outputMimeType: "image/jpeg",
+    },
+  };
+  console.error(`🌐 POST ${imagenEndpoint}`);
+  logParams("   Parametri Imagen:", imagenBody);
+  const response = await fetch(`${imagenEndpoint}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      prompt: `A cute, colorful children's book illustration for an AAC card: ${prompt}. Friendly artwork, simple clean background, no text.`,
-      config: {
-        numberOfImages: 1,
-        aspectRatio: "1:1",
-        outputMimeType: "image/jpeg",
-      },
-    }),
+    body: JSON.stringify(imagenBody),
   });
+  console.error(`   ← HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
 
   if (!response.ok) {
     const errText = await response.text();
@@ -406,6 +680,10 @@ async function generateGoogleImage(prompt, apiKey) {
   if (!b64) {
     throw new Error("Immagine non restituita da Google Imagen.");
   }
+  logParams("   Risposta Imagen:", {
+    generatedImages: data.generatedImages?.length || 0,
+    imageBytes: Buffer.byteLength(b64, "base64"),
+  });
 
   const tmpImg = join(tmpdir(), `card-gen-${Date.now()}.jpg`);
   writeFileSync(tmpImg, Buffer.from(b64, "base64"));
@@ -416,11 +694,11 @@ async function generateGoogleImage(prompt, apiKey) {
 function trimToWebm(input, start, end) {
   const duration = end - start;
   const tmp = join(tmpdir(), `card-${Date.now()}.webm`);
+  const trimCommand =
+    `ffmpeg -y -i "${input}" -ss ${start} -t ${duration} -vn -c:a libopus -b:a 64k "${tmp}"`;
   console.log(`ffmpeg: taglio ${start}s → ${end}s (${duration}s) e converto in webm...`);
-  execSync(
-    `ffmpeg -y -i "${input}" -ss ${start} -t ${duration} -vn -c:a libopus -b:a 64k "${tmp}"`,
-    { stdio: "inherit" }
-  );
+  console.error(`   Comando: ${trimCommand}`);
+  execSync(trimCommand, { stdio: "inherit" });
   return tmp;
 }
 
@@ -433,14 +711,14 @@ function isVideoFile(input) {
 function extractMidFrame(input, start, end) {
   const time = ((start + end) / 2).toFixed(2);
   const tmp = join(tmpdir(), `card-frame-${Date.now()}.jpg`);
+  const frameCommand =
+    `ffmpeg -y -ss ${time} -i "${input}" -frames:v 1 -update 1 -q:v 2 ` +
+    `-vf "scale=${IMAGE_SIZE}:${IMAGE_SIZE}:force_original_aspect_ratio=increase:flags=lanczos,crop=${IMAGE_SIZE}:${IMAGE_SIZE}" "${tmp}"`;
   console.log(
     `ffmpeg: estraggo il fotogramma centrale a ${time}s e lo ritaglio ${IMAGE_SIZE}x${IMAGE_SIZE}...`
   );
-  execSync(
-    `ffmpeg -y -ss ${time} -i "${input}" -frames:v 1 -update 1 -q:v 2 ` +
-      `-vf "scale=${IMAGE_SIZE}:${IMAGE_SIZE}:force_original_aspect_ratio=increase:flags=lanczos,crop=${IMAGE_SIZE}:${IMAGE_SIZE}" "${tmp}"`,
-    { stdio: "inherit" }
-  );
+  console.error(`   Comando: ${frameCommand}`);
+  execSync(frameCommand, { stdio: "inherit" });
   return tmp;
 }
 
@@ -471,16 +749,23 @@ class HttpError extends Error {
 async function request(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const method = (options.method || "GET").toUpperCase();
+  const safeUrl = redactUrl(url);
   let res;
   let text;
+  console.error(`🌐 ${method} ${safeUrl}`);
+  if (options.body !== undefined) {
+    logParams("   Parametri richiesta:", options.body);
+  }
   try {
     res = await fetch(url, { ...options, signal: controller.signal });
     text = await res.text();
+    console.error(`   ← HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ""}`);
   } catch (err) {
     if (err.name === "AbortError") {
-      throw new Error(`Timeout dopo ${REQUEST_TIMEOUT_MS / 1000}s: ${url}`);
+      throw new Error(`Timeout dopo ${REQUEST_TIMEOUT_MS / 1000}s: ${safeUrl}`);
     }
-    throw new Error(`Richiesta fallita (${url}): ${err.message}`);
+    throw new Error(`Richiesta fallita (${safeUrl}): ${err.message}`);
   } finally {
     clearTimeout(timer);
   }
@@ -523,10 +808,14 @@ async function login() {
 }
 
 async function connect() {
+  if (!EMAIL) {
+    throw new Error(
+      "Imposta la variabile d'ambiente SUPABASE_EMAIL (email dell'account Supabase)."
+    );
+  }
   if (!PASSWORD) {
     throw new Error(
-      "Imposta la variabile d'ambiente SUPABASE_PASSWORD " +
-        `(password dell'account ${EMAIL}; puoi cambiare account con SUPABASE_EMAIL)`
+      `Imposta la variabile d'ambiente SUPABASE_PASSWORD (password dell'account ${EMAIL}).`
     );
   }
   console.error(`Login come ${EMAIL}...`);
@@ -562,6 +851,25 @@ async function apiPost(token, path, body) {
   } catch (err) {
     if (err instanceof HttpError) {
       throw new Error(`POST ${path} fallito: ${err.reason()}`);
+    }
+    throw err;
+  }
+}
+
+async function apiPatch(token, path, body) {
+  try {
+    return await request(`${SUPABASE_URL}/rest/v1/${path}`, {
+      method: "PATCH",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    if (err instanceof HttpError) {
+      throw new Error(`PATCH ${path} fallito: ${err.reason()}`);
     }
     throw err;
   }
@@ -681,6 +989,14 @@ function describeCategory(category) {
   return `${category.emoji || DEFAULT_EMOJI} ${category.name} (${category.id})`;
 }
 
+function splitFlagList(value) {
+  if (value === null || value === undefined) return [];
+  return String(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function resolveCategory(categories, ref, flagName) {
   const byId = categories.find((category) => category.id === ref);
   if (byId) return byId;
@@ -776,7 +1092,27 @@ async function runRemote({ audioWebm, imagePath, name, category }) {
 // ── Comando: upload ───────────────────────────────────────────────────────────
 async function runUpload(flags) {
   const args = parseUploadArgs(flags);
-  const { mode, prompt, fullPrompt, additionalInfo, audioMode, musicModel, seconds, geminiApiKey, ttsApiKey, input, start, end, image, name, category } = args;
+  const { mode, prompt, fullPrompt, additionalInfo, audioMode, musicModel, seconds, geminiApiKey, ttsApiKey, elevenLabsApiKey, input, start, end, image, name, key, category } = args;
+
+  logParams("📋 Parametri upload:", {
+    mode,
+    prompt,
+    additionalInfo,
+    fullPrompt,
+    name,
+    key,
+    category,
+    audioMode,
+    musicModel,
+    seconds: seconds === null ? "nessun taglio" : seconds,
+    input,
+    start: Number.isFinite(start) ? start : null,
+    end: Number.isFinite(end) ? end : null,
+    image,
+    geminiApiKey: geminiApiKey ? "configurata" : "assente",
+    ttsApiKey: ttsApiKey ? "configurata" : "assente",
+    elevenLabsApiKey: elevenLabsApiKey ? "configurata" : "assente",
+  });
 
   let tempWebmAudio = null;
   let tempImage = null;
@@ -805,8 +1141,25 @@ async function runUpload(flags) {
               "oppure imposta GOOGLE_API_KEY o GEMINI_API_KEY."
           );
         }
-        console.log(`Modalità Audio: MUSIC (Google ${LYRIA_MODEL}, durata richiesta ${seconds} secondi)...`);
+        const durationLabel = seconds === null ? "nessun taglio" : `${seconds} secondi`;
+        console.log(`Modalità Audio: MUSIC (Google ${LYRIA_MODEL}, ${durationLabel})...`);
         tempWebmAudio = await generateGoogleMusic(fullPrompt, musicKey, seconds);
+      } else if (audioMode === "effects") {
+        if (!elevenLabsApiKey) {
+          throw new Error(
+            "API Key ElevenLabs mancante per la generazione effetti. Passa --elevenlabs-key <key> " +
+              "oppure imposta ELEVENLABS_API_KEY o ELEVENLABS_TOKEN."
+          );
+        }
+        const durationLabel = seconds === null ? "durata automatica" : `${seconds} secondi`;
+        console.log(
+          `Modalità Audio: EFFECTS (ElevenLabs ${ELEVENLABS_SFX_MODEL}, ${durationLabel})...`
+        );
+        tempWebmAudio = await generateElevenLabsSoundEffect(
+          fullPrompt,
+          elevenLabsApiKey,
+          seconds
+        );
       } else {
         if (!ttsApiKey) {
           throw new Error(
@@ -838,7 +1191,7 @@ async function runUpload(flags) {
             "  # DA PROMPT (Google AI):\n" +
             "  GOOGLE_API_KEY=*** node upload-card.js upload \\\n" +
             '    --prompt "Un leone ruggente nella savana" \\\n' +
-            "    --category <uuid_categoria> [--audio-mode voice|music] [--name \"Leone\"]\n\n" +
+            "    --category <uuid_categoria> [--audio-mode voice|music|effects] [--name \"Leone\"]\n\n" +
             "  # DA VIDEO/FILE:\n" +
             "  node upload-card.js upload --mode local|remote \\\n" +
             "    --input video.mp4 --start 0 --end 15 \\\n" +
@@ -993,6 +1346,279 @@ async function runCards(flags) {
   console.log(`\nTotale: ${rows.length} card`);
 }
 
+// ── Comando: move-card (sposta card tra categorie) ────────────────────────────
+async function runMoveCard(flags) {
+  const toRef = flagValue(flags, "to") || flagValue(flags, "destination");
+  const fromRef = flagValue(flags, "from") || flagValue(flags, "source");
+  const moveAll = Boolean(flags.all);
+  const dryRun = Boolean(flags["dry-run"]);
+  const jsonOutput = Boolean(flags.json);
+  const info = jsonOutput ? console.error : console.log;
+
+  const ids = [
+    ...splitFlagList(flagValue(flags, "id")),
+    ...splitFlagList(flagValue(flags, "ids")),
+  ];
+  const names = [
+    ...splitFlagList(flagValue(flags, "name")),
+    ...splitFlagList(flagValue(flags, "names")),
+  ];
+
+  if (!toRef) {
+    throw new Error('Parametro mancante: --to <uuid|nome categoria di destinazione>');
+  }
+  if (moveAll && (ids.length > 0 || names.length > 0)) {
+    throw new Error("Usa --all da solo, oppure --id/--ids/--name/--names per scegliere le card.");
+  }
+  if (!moveAll && ids.length === 0 && names.length === 0) {
+    throw new Error(
+      "Indica le card da spostare: --id <uuid>, --ids <uuid1,uuid2>, " +
+        '--name "Leone", --names "Leone,Gatto", oppure --all --from <categoria>.'
+    );
+  }
+  if (moveAll && !fromRef) {
+    throw new Error(
+      "--all richiede --from <categoria>: sposterebbe tutte le card dell'utente."
+    );
+  }
+
+  const { token } = await connect();
+  console.error("Carico categorie e card...");
+  const categories = await fetchCategories(token);
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
+
+  const destination = resolveCategory(categories, toRef, "--to");
+  const source = fromRef ? resolveCategory(categories, fromRef, "--from") : null;
+
+  if (source && source.id === destination.id) {
+    throw new Error(
+      `La categoria di partenza e quella di destinazione coincidono: ${describeCategory(destination)}`
+    );
+  }
+
+  const cards = await fetchCards(token);
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+  let candidates = [];
+  let unscopedMatches = new Map();
+
+  if (ids.length > 0) {
+    const missing = [];
+    for (const id of ids) {
+      const card = cardById.get(id);
+      if (card) candidates.push(card);
+      else missing.push(id);
+    }
+    if (missing.length > 0) {
+      throw new Error(`Card non trovate con ID:\n  ${missing.join("\n  ")}`);
+    }
+  } else if (names.length > 0) {
+    for (const name of names) {
+      const matches = cards.filter((card) => foldName(card.name) === foldName(name));
+      const scoped = source
+        ? matches.filter((card) => card.category_id === source.id)
+        : matches;
+
+      if (matches.length === 0) {
+        throw new Error(`Nessuna card trovata con nome "${name}".`);
+      }
+      if (scoped.length === 0) {
+        throw new Error(
+          `La card "${name}" non è in ${describeCategory(source)}. Si trova in:\n` +
+            matches
+              .map((card) => {
+                const category = categoryById.get(card.category_id);
+                return `  ${card.id}  "${card.name}" in ${
+                  category ? describeCategory(category) : card.category_id
+                }`;
+              })
+              .join("\n")
+        );
+      }
+      if (scoped.length > 1) {
+        throw new Error(
+          `Più card si chiamano "${name}" nella stessa categoria:\n` +
+            scoped.map((card) => `  ${card.id}  "${card.name}"`).join("\n") +
+            "\nUsa --id <uuid> per scegliere quella giusta."
+        );
+      }
+      if (!source && matches.length > 1) {
+        unscopedMatches.set(name, matches);
+      }
+      candidates.push(scoped[0]);
+    }
+
+    if (unscopedMatches.size > 0) {
+      const lines = [];
+      for (const [name, matches] of unscopedMatches) {
+        lines.push(`"${name}":`);
+        for (const card of matches) {
+          const category = categoryById.get(card.category_id);
+          lines.push(
+            `  ${card.id}  in ${category ? describeCategory(category) : card.category_id}`
+          );
+        }
+      }
+      throw new Error(
+        "Alcune card con lo stesso nome esistono in più categorie. " +
+          "Aggiungi --from <categoria> per disambiguare:\n" +
+          lines.join("\n")
+      );
+    }
+  } else {
+    candidates = cards.filter((card) => card.category_id === source.id);
+  }
+
+  if (source) {
+    const outside = candidates.filter((card) => card.category_id !== source.id);
+    if (outside.length > 0) {
+      throw new Error(
+        `Queste card non sono in ${describeCategory(source)}:\n` +
+          outside
+            .map((card) => {
+              const category = categoryById.get(card.category_id);
+              return `  ${card.id}  "${card.name}" in ${
+                category ? describeCategory(category) : card.category_id
+              }`;
+            })
+            .join("\n")
+      );
+    }
+  }
+
+  // Deduplica (es. stesso id indicato con --id e --ids)
+  candidates = [...new Map(candidates.map((card) => [card.id, card])).values()];
+
+  const alreadyThere = candidates.filter(
+    (card) => card.category_id === destination.id
+  );
+  candidates = candidates.filter((card) => card.category_id !== destination.id);
+
+  if (alreadyThere.length > 0) {
+    info(
+      `ℹ️  ${alreadyThere.length} card già in ${describeCategory(destination)}, saltate:`
+    );
+    for (const card of alreadyThere) {
+      info(`  - "${card.name}" (${card.id})`);
+    }
+  }
+
+  if (candidates.length === 0) {
+    info("\nNessuna card da spostare.");
+    if (jsonOutput) {
+      console.log(
+        JSON.stringify(
+          {
+            source,
+            destination,
+            moved: [],
+            failed: [],
+            alreadyThere: alreadyThere.map((card) => ({ id: card.id, name: card.name })),
+          },
+          null,
+          2
+        )
+      );
+    }
+    return;
+  }
+
+  info(
+    `\nSposto ${candidates.length} card verso ${describeCategory(destination)}:`
+  );
+  for (const card of candidates) {
+    const category = categoryById.get(card.category_id);
+    info(
+      `  - "${card.name}" (${card.id})  ${
+        category ? `da ${describeCategory(category)}` : "categoria sconosciuta"
+      }`
+    );
+  }
+
+  if (dryRun) {
+    if (jsonOutput) {
+      console.log(
+        JSON.stringify(
+          {
+            dryRun: true,
+            source,
+            destination,
+            cards: candidates.map((card) => ({
+              id: card.id,
+              name: card.name,
+              from_category_id: card.category_id,
+            })),
+            alreadyThere: alreadyThere.map((card) => ({ id: card.id, name: card.name })),
+          },
+          null,
+          2
+        )
+      );
+    } else {
+      console.log("\n[Dry run] Nessuna modifica eseguita su Supabase.");
+    }
+    return;
+  }
+
+  const moved = [];
+  const failed = [];
+
+  for (const card of candidates) {
+    const category = categoryById.get(card.category_id);
+    info(
+      `\n🔀 Sposto "${card.name}" da ${
+        category ? describeCategory(category) : card.category_id
+      } → ${describeCategory(destination)}...`
+    );
+    try {
+      const updated = await apiPatch(
+        token,
+        `user_cards?id=eq.${encodeURIComponent(card.id)}`,
+        { category_id: destination.id }
+      );
+      if (!Array.isArray(updated) || updated.length === 0) {
+        throw new Error("nessuna riga aggiornata (permessi o card inesistente)");
+      }
+      moved.push(card);
+      info(`  ✅ Spostata.`);
+    } catch (err) {
+      failed.push({ card, message: err.message });
+      console.warn(`  ⚠️  Salto "${card.name}": ${err.message}`);
+    }
+  }
+
+  if (failed.length > 0) {
+    console.warn(`\n⚠️  Card non spostate (${failed.length}):`);
+    for (const failure of failed) {
+      console.warn(`  - "${failure.card.name}": ${failure.message}`);
+    }
+  }
+  info(`\nRiepilogo: ${moved.length} card spostate, ${failed.length} fallite.`);
+
+  if (jsonOutput) {
+    console.log(
+      JSON.stringify(
+        {
+          source,
+          destination,
+          moved: moved.map((card) => ({ id: card.id, name: card.name })),
+          failed: failed.map((failure) => ({
+            id: failure.card.id,
+            name: failure.card.name,
+            error: failure.message,
+          })),
+          alreadyThere: alreadyThere.map((card) => ({ id: card.id, name: card.name })),
+        },
+        null,
+        2
+      )
+    );
+  }
+
+  if (moved.length === 0) {
+    throw new Error("Nessuna card è stata spostata.");
+  }
+}
+
 async function runDeleteCard(flags) {
   const cardId = flagValue(flags, "id");
   const cardName = flagValue(flags, "name");
@@ -1116,6 +1742,338 @@ async function runCreateCategory(flags) {
   console.log(`  Nome:  ${category.emoji} ${category.name}`);
 }
 
+// ── Comando: video (categoria Supabase → video locale) ────────────────────────
+function safeFileName(value, fallback = "video") {
+  const cleaned = String(value || "")
+    .normalize("NFC")
+    .trim()
+    .replace(/[/\\:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return cleaned || fallback;
+}
+
+function extensionFromUrl(url) {
+  try {
+    return extname(new URL(url).pathname).replace(".", "").toLowerCase() || "bin";
+  } catch {
+    return "bin";
+  }
+}
+
+async function downloadToFile(url, dir, prefix) {
+  console.error(`🌐 GET ${redactUrl(url)}`);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `Download fallito (${response.status}) da ${redactUrl(url)}`
+    );
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const file = join(
+    dir,
+    `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extensionFromUrl(url)}`
+  );
+  writeFileSync(file, buffer);
+  console.error(`   ← ${buffer.length} bytes → ${file}`);
+  return file;
+}
+
+function runFfmpeg(args, label) {
+  const display = ["ffmpeg", ...args]
+    .map((arg) => (/\s/.test(arg) ? `"${arg}"` : arg))
+    .join(" ");
+  if (label) console.log(label);
+  console.error(`   Comando: ${display}`);
+
+  const result = spawnSync("ffmpeg", args, { encoding: "utf8" });
+  if (result.error) {
+    throw new Error(`Impossibile eseguire ffmpeg: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const details = (result.stderr || "").trim().split("\n").slice(-3).join(" ");
+    throw new Error(`ffmpeg fallito (exit ${result.status}): ${details}`);
+  }
+}
+
+function videoScaleFilter(size) {
+  const [width, height] = size.split("x");
+  return (
+    `scale=${width}:${height}:force_original_aspect_ratio=decrease:flags=lanczos,` +
+    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=white,setsar=1,format=yuv420p`
+  );
+}
+
+// Costruisce un segmento video: immagine fissa + [TTS del nome][audio Supabase],
+// oppure [audio Supabase][TTS del nome] con --audio-order sound-first.
+async function buildCardSegment({
+  card,
+  index,
+  apiKey,
+  voice,
+  languageCode,
+  size,
+  fps,
+  soundFirst,
+  gap,
+  workDir,
+}) {
+  if (!card.image_url) throw new Error("immagine mancante su Supabase");
+  if (!card.sound_url) throw new Error("audio mancante su Supabase");
+
+  console.log(`🖼️  Scarico l'immagine della card...`);
+  const imagePath = await downloadToFile(card.image_url, workDir, `img-${index}`);
+
+  console.log(`🔊 Scarico l'audio della card...`);
+  const soundPath = await downloadToFile(card.sound_url, workDir, `snd-${index}`);
+
+  console.log(`🗣️  Genero il TTS del nome "${card.name}"...`);
+  const ttsPath = await synthesizeGoogleTtsMp3(card.name, apiKey, {
+    voice,
+    languageCode,
+    pitch: 0,
+    speakingRate: 1,
+    dir: workDir,
+  });
+
+  const sequence = soundFirst ? [soundPath, ttsPath] : [ttsPath, soundPath];
+  const inputs = [];
+  const audioChains = [];
+
+  sequence.forEach((file, position) => {
+    inputs.push("-i", file);
+    const pad = gap > 0 ? `,apad=pad_dur=${gap}` : "";
+    audioChains.push(
+      `[${position + 1}:a]aresample=44100:async=1,` +
+        `aformat=sample_fmts=fltp:channel_layouts=stereo${pad}[a${position}]`
+    );
+  });
+
+  const concatInputs = sequence.map((_, position) => `[a${position}]`).join("");
+  const filter =
+    `[0:v]${videoScaleFilter(size)}[vout];` +
+    audioChains.join(";") +
+    `;${concatInputs}concat=n=${sequence.length}:v=0:a=1[aout]`;
+
+  const segmentPath = join(workDir, `segment-${String(index + 1).padStart(3, "0")}.mp4`);
+  runFfmpeg(
+    [
+      "-loop", "1",
+      "-framerate", String(fps),
+      "-i", imagePath,
+      ...inputs,
+      "-filter_complex", filter,
+      "-map", "[vout]",
+      "-map", "[aout]",
+      "-c:v", "libx264",
+      "-preset", "veryfast",
+      "-tune", "stillimage",
+      "-pix_fmt", "yuv420p",
+      "-r", String(fps),
+      "-c:a", "aac",
+      "-b:a", "128k",
+      "-ar", "44100",
+      "-ac", "2",
+      "-shortest",
+      "-movflags", "+faststart",
+      segmentPath,
+    ],
+    `🎬 Creo il segmento ${index + 1}: "${card.name}"`
+  );
+
+  return { path: segmentPath, card, index };
+}
+
+async function concatVideoSegments(segmentPaths, outputPath, workDir) {
+  const listPath = join(workDir, "concat-list.txt");
+  const list = segmentPaths
+    .map((segment) => `file '${segment.replace(/'/g, "'\\''")}'`)
+    .join("\n");
+  writeFileSync(listPath, `${list}\n`);
+
+  runFfmpeg(
+    [
+      "-f", "concat",
+      "-safe", "0",
+      "-i", listPath,
+      "-c", "copy",
+      "-movflags", "+faststart",
+      outputPath,
+    ],
+    "🎞️  Unisco tutti i segmenti in un unico video..."
+  );
+}
+
+async function runVideo(flags) {
+  const categoryRef = flagValue(flags, "category");
+  if (!categoryRef) {
+    throw new Error('Parametro mancante: --category <uuid_categoria|nome>');
+  }
+
+  const apiKey =
+    flagValue(flags, "tts-key") ||
+    flagValue(flags, "api-key") ||
+    process.env.GOOGLE_TTS_API_KEY ||
+    process.env.GOOGLE_CLOUD_API_KEY ||
+    process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "API Key Google mancante per il text-to-speech. Passa --api-key <key> " +
+        "oppure imposta GOOGLE_API_KEY o GOOGLE_TTS_API_KEY."
+    );
+  }
+
+  const outDir = resolve(flagValue(flags, "out") || join(process.cwd(), "videos"));
+  const perCard = Boolean(flags["per-card"]);
+  const size = (flagValue(flags, "size") || DEFAULT_VIDEO_SIZE).toLowerCase();
+  if (!/^\d{2,5}x\d{2,5}$/.test(size)) {
+    throw new Error(`--size non valido: ${size} (usa ad esempio 1080x1080)`);
+  }
+
+  const fps = Number(flagValue(flags, "fps") || DEFAULT_VIDEO_FPS);
+  if (!Number.isFinite(fps) || fps <= 0 || fps > 60) {
+    throw new Error(`--fps non valido: ${flagValue(flags, "fps")} (1-60)`);
+  }
+
+  const gap = Number(flagValue(flags, "gap") || 0);
+  if (!Number.isFinite(gap) || gap < 0) {
+    throw new Error(`--gap non valido: ${flagValue(flags, "gap")} (secondi >= 0)`);
+  }
+
+  const order = (flagValue(flags, "order") || "created").toLowerCase();
+  if (!["created", "name"].includes(order)) {
+    throw new Error(`--order non valido: ${order} (usa "created" o "name")`);
+  }
+
+  const audioOrder = (flagValue(flags, "audio-order") || "name-first").toLowerCase();
+  if (!["name-first", "sound-first"].includes(audioOrder)) {
+    throw new Error(
+      `--audio-order non valido: ${audioOrder} (usa "name-first" o "sound-first")`
+    );
+  }
+
+  const voice = pickTtsVoice(flagValue(flags, "voice")).name;
+  const languageCode = flagValue(flags, "lang") || "it-IT";
+  const rawLimit = flagValue(flags, "limit");
+  const limit = rawLimit === null ? null : Number(rawLimit);
+  if (limit !== null && (!Number.isInteger(limit) || limit <= 0)) {
+    throw new Error(`--limit non valido: ${rawLimit} (intero > 0)`);
+  }
+
+  logParams("📋 Parametri video:", {
+    category: categoryRef,
+    out: outDir,
+    perCard,
+    size,
+    fps,
+    gap,
+    order,
+    audioOrder,
+    voice: voice || "casuale (una sola voce per tutte le card)",
+    languageCode,
+    limit,
+    apiKey: "configurata",
+  });
+
+  const { token } = await connect();
+  console.error("Carico categorie e card...");
+  const categories = await fetchCategories(token);
+  const category = resolveCategory(categories, categoryRef, "--category");
+
+  let cards = (await fetchCards(token)).filter(
+    (card) => card.category_id === category.id
+  );
+  if (order === "name") {
+    cards.sort((a, b) => String(a.name).localeCompare(String(b.name), "it"));
+  }
+  if (limit !== null) cards = cards.slice(0, limit);
+
+  if (cards.length === 0) {
+    throw new Error(`Nessuna card trovata in ${describeCategory(category)}.`);
+  }
+
+  console.log(
+    `\n🎬 Creo il video per ${describeCategory(category)} (${cards.length} card)`
+  );
+
+  mkdirSync(outDir, { recursive: true });
+  const workDir = join(
+    tmpdir(),
+    `soundpad-video-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  );
+  mkdirSync(workDir, { recursive: true });
+
+  const baseName = safeFileName(
+    flagValue(flags, "name") || slugify(category.name),
+    "categoria"
+  );
+  const results = [];
+  const failures = [];
+
+  try {
+    for (const [index, card] of cards.entries()) {
+      console.log(`\n── Card ${index + 1}/${cards.length}: "${card.name}" ──`);
+      try {
+        const segment = await buildCardSegment({
+          card,
+          index,
+          apiKey,
+          voice,
+          languageCode,
+          size,
+          fps,
+          soundFirst: audioOrder === "sound-first",
+          gap,
+          workDir,
+        });
+        results.push(segment);
+      } catch (err) {
+        failures.push({ card, message: err.message });
+        console.warn(`⚠️  Salto "${card.name}": ${err.message}`);
+      }
+    }
+
+    if (results.length === 0) {
+      throw new Error("Nessun segmento video generato: tutte le card sono fallite.");
+    }
+
+    if (perCard) {
+      for (const { path, card, index } of results) {
+        const fileName = `${baseName}-${String(index + 1).padStart(2, "0")}-${safeFileName(
+          card.name,
+          "card"
+        )}.mp4`;
+        const dest = join(outDir, fileName);
+        copyFileSync(path, dest);
+        console.log(`✅ Video card salvato: ${dest}`);
+      }
+    } else {
+      const outputPath = join(outDir, `${baseName}.mp4`);
+      await concatVideoSegments(
+        results.map((result) => result.path),
+        outputPath,
+        workDir
+      );
+      console.log(`\n✅ Video creato: ${outputPath}`);
+    }
+
+    if (failures.length > 0) {
+      console.warn(`\n⚠️  Card saltate (${failures.length}):`);
+      for (const failure of failures) {
+        console.warn(`  - ${failure.card.name}: ${failure.message}`);
+      }
+    }
+    console.log(
+      `\nRiepilogo: ${results.length} card incluse, ${failures.length} saltate.`
+    );
+  } finally {
+    try {
+      rmSync(workDir, { recursive: true, force: true });
+    } catch {}
+  }
+}
+
 // ── Help ──────────────────────────────────────────────────────────────────────
 function printHelp() {
   console.log(`
@@ -1128,8 +2086,10 @@ Comandi disponibili:
   categories        Elenca tutte le categorie dell'utente
   create-category   Crea una nuova categoria (restituisce il suo UUID)
   cards             Elenca le card dell'utente (filtrabili per categoria)
+  move-card         Sposta una o più card in un'altra categoria
   delete-card       Elimina una card dal DB e dai bucket Storage (card-images e card-sounds)
   upload            Crea una card (audio WebM + immagine) da PROMPT o da VIDEO/FILE
+  video             Crea un video locale partendo da una categoria Supabase
   help              Mostra questo manuale d'aiuto
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -1158,7 +2118,32 @@ ESEMPI PER OGNI COMANDO
   SUPABASE_PASSWORD=*** node upload-card.js cards --category "Animali"
   SUPABASE_PASSWORD=*** node upload-card.js cards --category <uuid_categoria> --json
 
-4. Comando: delete-card (Eliminazione card da DB e Storage)
+4. Comando: move-card (Sposta card tra categorie)
+  # Sposta una card per nome (confronto senza maiuscole/accenti)
+  SUPABASE_PASSWORD=*** node upload-card.js move-card \\
+    --name "Leone" --to "Animali"
+
+  # Sposta più card in una volta (nomi separati da virgola)
+  SUPABASE_PASSWORD=*** node upload-card.js move-card \\
+    --names "Leone,Tigre,Orso" --to "Animali"
+
+  # Sposta per UUID (uno o più separati da virgola)
+  SUPABASE_PASSWORD=*** node upload-card.js move-card \\
+    --ids <uuid1>,<uuid2> --to <uuid_categoria>
+
+  # Disambigua con --from se lo stesso nome esiste in più categorie
+  SUPABASE_PASSWORD=*** node upload-card.js move-card \\
+    --name "Albero" --from "Natura" --to "Alfabeto"
+
+  # Sposta tutte le card di una categoria in un'altra
+  SUPABASE_PASSWORD=*** node upload-card.js move-card \\
+    --all --from "Animali" --to "Dinosauri"
+
+  # Mostra cosa verrebbe spostato senza modificare nulla
+  SUPABASE_PASSWORD=*** node upload-card.js move-card \\
+    --names "Leone,Tigre" --to "Animali" --dry-run
+
+5. Comando: delete-card (Eliminazione card da DB e Storage)
   # Elimina una card per ID (rimuove il record da DB e i file da card-images/card-sounds)
   SUPABASE_PASSWORD=*** node upload-card.js delete-card --id <uuid_card>
 
@@ -1171,7 +2156,7 @@ ESEMPI PER OGNI COMANDO
   # Elimina tutte le card corrispondenti a quel nome
   SUPABASE_PASSWORD=*** node upload-card.js delete-card --name "Gatto" --all
 
-5. Comando: upload (Creazione e caricamento card)
+6. Comando: upload (Creazione e caricamento card)
   # A) Da PROMPT con Google AI (Voce TTS casuale + Immagine Gemini/Imagen):
   GOOGLE_API_KEY=*** node upload-card.js upload \\
     --prompt "Leone" \\
@@ -1186,23 +2171,50 @@ ESEMPI PER OGNI COMANDO
     --seconds 20 \\
     --category <uuid_categoria>
 
-  # C) Da PROMPT in LOCALE (salva gli asset in public/):
+  # C) Da PROMPT in modalità EFFETTI con ElevenLabs Sound Effects:
+  GOOGLE_API_KEY=*** ELEVENLABS_API_KEY=*** node upload-card.js upload \\
+    --prompt "Un tuono lontano durante un temporale" \\
+    --additional-info "pioggia intensa, atmosfera cinematografica" \\
+    --audio-mode effects \\
+    --seconds 8 \\
+    --category <uuid_categoria>
+
+  # D) Da PROMPT in LOCALE (salva gli asset in public/):
   GOOGLE_API_KEY=*** node upload-card.js upload \\
     --prompt "Un albero fiorito" \\
     --category animals \\
     --mode local
 
-  # D) Da FILE VIDEO (estrae traccia audio WebM + fotogramma centrale):
+  # E) Da FILE VIDEO (estrae traccia audio WebM + fotogramma centrale):
   SUPABASE_PASSWORD=*** node upload-card.js upload \\
     --input video.mp4 --start 10 --end 25 \\
     --name "Leone" --category <uuid_categoria>
 
-  # E) Da FILE AUDIO e IMMAGINE già pronti:
+  # F) Da FILE AUDIO e IMMAGINE già pronti:
   SUPABASE_PASSWORD=*** node upload-card.js upload \\
     --input audio.m4a --start 0 --end 15 \\
     --image foto.jpg --name "Leone" --category <uuid_categoria>
 
-6. Comando: help (Aiuto)
+7. Comando: video (Video locale da una categoria Supabase)
+  # Scarica tutte le card della categoria, genera il TTS del nome e monta
+  # per ogni card: immagine fissa + [TTS nome][audio della card].
+  # I segmenti vengono uniti in un unico video con cambio immagine a fine audio.
+  SUPABASE_PASSWORD=*** GOOGLE_API_KEY=*** node upload-card.js video \\
+    --category "Animali" --out ./videos
+
+  # Un video separato per ogni card (invece di un unico montaggio)
+  SUPABASE_PASSWORD=*** GOOGLE_API_KEY=*** node upload-card.js video \\
+    --category "Animali" --per-card --out ./videos
+
+  # Ordine audio inverso (prima il suono della card, poi il nome) e pausa di 0.4s
+  SUPABASE_PASSWORD=*** GOOGLE_API_KEY=*** node upload-card.js video \\
+    --category <uuid_categoria> --audio-order sound-first --gap 0.4
+
+  # Formato verticale, voce fissa e nome file personalizzato
+  SUPABASE_PASSWORD=*** GOOGLE_API_KEY=*** node upload-card.js video \\
+    --category "Animali" --size 1080x1920 --voice it-IT-Neural2-A --name animali
+
+8. Comando: help (Aiuto)
   node upload-card.js help
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -1210,23 +2222,41 @@ PARAMETRI D'AMBIENTE E FLAG GLOBALI
 ────────────────────────────────────────────────────────────────────────────────
 Variabili d'ambiente:
   SUPABASE_PASSWORD   Password dell'account Supabase (richiesta per comandi remoti)
-  SUPABASE_EMAIL      Email dell'account (default: tony.dream@gmail.com)
-  GOOGLE_API_KEY      API Key unica per Google AI (Gemini + Lyria + Text-to-Speech)
-  GEMINI_API_KEY      API Key specifica per Gemini / Imagen / Lyria
-  GOOGLE_TTS_API_KEY  API Key specifica per Google Text-to-Speech
+  SUPABASE_EMAIL      Email dell'account Supabase
+  GOOGLE_API_KEY       API Key unica per Google AI (Gemini + Lyria + Text-to-Speech)
+  GEMINI_API_KEY       API Key specifica per Gemini / Imagen / Lyria
+  GOOGLE_TTS_API_KEY   API Key specifica per Google Text-to-Speech
+  ELEVENLABS_API_KEY   API Key ElevenLabs per --audio-mode effects
+  ELEVENLABS_TOKEN     Alias supportato per ELEVENLABS_API_KEY
 
 Flag upload da Prompt:
   --prompt <testo>          Titolo/messaggio principale della card (es. "Gatto")
   --additional-info <info>  Dettagli aggiuntivi per guidare l'AI (es. "gatto rosso sul divano")
-  --audio-mode voice|music  voice (Google TTS) o music (Google Lyria 3.5) [default: voice]
+  --audio-mode <tipo>       voice (Google TTS), music (Google Lyria 3.5) o effects (ElevenLabs) [default: voice]
   --music-model lyria-3.5   Unico modello disponibile per la musica [default: lyria-3.5]
-  --seconds <n>             Durata massima del brano in secondi [default: 20]
+  --seconds <n>             Durata audio; music: taglio opzionale, effects: parametro API 0.5-30s
   --api-key <key>           Google API Key Unica (oppure imposta GOOGLE_API_KEY in .env)
   --gemini-key <key>        Chiave specifica per Gemini/Lyria (o GEMINI_API_KEY)
   --tts-key <key>           Chiave specifica per TTS (o GOOGLE_TTS_API_KEY)
+  --elevenlabs-key <key>    Chiave ElevenLabs (o ELEVENLABS_API_KEY / ELEVENLABS_TOKEN)
   --name <nome>             Nome della card (default: testo del prompt)
   --category <uuid|nome>    UUID (per remoto) o cartella public/ (per locale)
   --mode remote|local       remote (upload Supabase) o local (salva in public/)
+
+Log diagnostici:
+  Richieste HTTP, parametri Google/ElevenLabs/Supabase e comandi ffmpeg sono stampati su stderr.
+  Chiavi API, token e password vengono redatti automaticamente.
+
+Flag move-card:
+  --to <uuid|nome>          Categoria di destinazione (obbligatorio)
+  --from <uuid|nome>        Categoria di partenza (consigliato, obbligatorio con --all)
+  --id <uuid>               Sposta una card per ID
+  --ids <uuid1,uuid2,...>   Sposta più card per ID (separati da virgola)
+  --name "Nome"             Sposta una card per nome
+  --names "A,B,C"           Sposta più card per nome (separati da virgola)
+  --all                     Sposta tutte le card di --from
+  --dry-run                 Mostra cosa verrebbe spostato senza modificare nulla
+  --json                    Stampa l'esito (o il piano) in JSON
 
 Flag delete-card:
   --id <uuid>               ID della card da cancellare
@@ -1234,6 +2264,24 @@ Flag delete-card:
   --category <uuid|nome>    Filtra per categoria se ci sono più card con lo stesso nome
   --all                     Cancella tutte le card trovate con quel nome
   --dry-run                 Mostra cosa verrebbe cancellato senza eseguire
+
+Flag video:
+  --category <uuid|nome>    Categoria Supabase da trasformare in video (obbligatorio)
+  --out <dir>               Cartella di destinazione [default: ./videos]
+  --name <nome>             Nome del file video, senza estensione [default: nome categoria]
+  --per-card                Crea un video separato per ogni card
+  --size <WxH>              Risoluzione del video [default: 1080x1080]
+  --fps <n>                 Frame rate del video [default: 30]
+  --order created|name      Ordine delle card [default: created]
+  --audio-order name-first|sound-first
+                            Ordine audio: prima il TTS del nome o prima il suono
+                            della card [default: name-first]
+  --gap <secondi>           Pausa di silenzio dopo ogni audio [default: 0]
+  --voice <nome|FEMALE|MALE>
+                            Voce TTS fissa (una sola voce per tutto il video)
+  --lang <codice>           Lingua TTS [default: it-IT]
+  --limit <n>               Limita il video alle prime n card
+  --tts-key <key>           Chiave specifica per TTS (o GOOGLE_TTS_API_KEY)
 `.trim());
 }
 
@@ -1247,7 +2295,12 @@ async function main() {
     delete: "delete-card",
     remove: "delete-card",
     "remove-card": "delete-card",
+    "move-card": "move-card",
+    move: "move-card",
+    mv: "move-card",
     "add-category": "create-category",
+    "make-video": "video",
+    "category-video": "video",
   };
 
   let command = "upload";
@@ -1264,6 +2317,8 @@ async function main() {
     return;
   }
 
+  logParams("⚙️ Comando CLI:", { command, flags });
+
   switch (command) {
     case "upload":
       await runUpload(flags);
@@ -1274,11 +2329,17 @@ async function main() {
     case "cards":
       await runCards(flags);
       break;
+    case "move-card":
+      await runMoveCard(flags);
+      break;
     case "delete-card":
       await runDeleteCard(flags);
       break;
     case "create-category":
       await runCreateCategory(flags);
+      break;
+    case "video":
+      await runVideo(flags);
       break;
     default:
       console.error(`Comando sconosciuto: ${command}`);
