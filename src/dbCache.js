@@ -123,6 +123,8 @@ export function getDbCacheStatus() {
 export const dbCacheKeys = {
   categories: (userId) => `categories:${userId}`,
   cards: (userId, categoryId) => `cards:${userId}:${categoryId}`,
+  // Tutte le card dell'utente, usate dalla categoria "Casuale".
+  allCards: (userId) => `all-cards:${userId}`,
   // v2: ignora le vecchie liste vuote salvate anche in caso di errore di rete.
   selector: (userId) => `selector:v2:${userId}`,
 };

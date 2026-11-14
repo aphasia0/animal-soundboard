@@ -177,6 +177,13 @@ soundpad/
 │   ├── supabaseClient.js  # Supabase client wrapper
 │   ├── audioUtils.js      # Web Audio API utilities
 │   └── main.js            # Entry point
+├── e2e/                   # Test end-to-end Playwright
+│   ├── auth.spec.js
+│   ├── navigation.spec.js
+│   ├── sections.spec.js
+│   ├── card-selector.spec.js
+│   └── helpers/
+│       └── supabase-mock.js
 ├── scripts/               # Asset generation scripts
 │   ├── generate-images.js
 │   ├── generate-sounds.js
@@ -244,9 +251,14 @@ Serve `ffmpeg` nel PATH e le dipendenze in `scripts/`
 SUPABASE_PASSWORD=*** node scripts/upload-card.js categories
 SUPABASE_PASSWORD=*** node scripts/upload-card.js categories --json
 
-# Crea una categoria e ottieni il suo UUID
+# Crea una categoria: il suo UUID viene salvato come CAT e usato
+# automaticamente dai comandi successivi (se --category è omesso)
 SUPABASE_PASSWORD=*** node scripts/upload-card.js create-category \
   --name "Animali" --emoji "🐾"
+
+# Per impostare CAT anche nella shell corrente:
+eval "$(SUPABASE_PASSWORD=*** node scripts/upload-card.js create-category \
+  --name "Animali" --emoji "🐾" --export)"
 
 # Elenca le card (id, nome, categoria); --category filtra una sezione
 SUPABASE_PASSWORD=*** node scripts/upload-card.js cards
@@ -260,7 +272,7 @@ SUPABASE_PASSWORD=*** node scripts/upload-card.js move-card \
 
 # Analizza un video: trova i suoni, legge le etichette (OCR), estrae le
 # immagini e stampa i comandi di upload pronti da eseguire
-export CAT=<uuid_categoria>
+# CAT è già impostata da create-category; usa --category per sovrascriverla
 node scripts/upload-card.js analyze --input video.webm > upload.sh
 bash upload.sh
 # oppure: npm run --silent analyze -- --input video.webm > upload.sh
@@ -299,7 +311,7 @@ successiva. Di default i segmenti vengono uniti in un unico MP4.
 
 ```bash
 export SUPABASE_PASSWORD=***
-export GOOGLE_API_KEY=***
+export GOOGLE_TTS_API_KEY=***
 
 # Un unico video con tutte le card della categoria
 node scripts/upload-card.js video --category "Animali" --out ./videos
@@ -315,7 +327,7 @@ node scripts/upload-card.js video --category "Animali" \
 Opzioni: `--out <dir>` (default `./videos`), `--name <file>`, `--size WxH`
 (default `1080x1080`), `--fps 30`, `--order created|name`, `--audio-order
 name-first|sound-first`, `--gap <sec>`, `--voice <nome|FEMALE|MALE>`, `--lang
-it-IT`, `--limit <n>`, `--per-card`, `--tts-key <key>`.
+it-IT`, `--limit <n>`, `--per-card`.
 
 Senza `--voice` viene scelta una voce casuale una sola volta e riusata per tutte
 le card, così il video resta coerente. Le card senza immagine o audio vengono
@@ -336,7 +348,7 @@ redirigibile e direttamente eseguibile:
 
 ```bash
 export SUPABASE_PASSWORD=***
-export CAT=<uuid_categoria>
+# CAT è già impostata da create-category; usa --category per sovrascriverla
 
 node scripts/upload-card.js analyze --input video.webm > upload.sh
 cat upload.sh     # controlla i comandi
@@ -404,6 +416,98 @@ npm run build
 ```
 
 The production-ready files will be in the `public/` directory.
+
+### Test E2E (Playwright)
+
+Il repo ha test **end-to-end** in `e2e/`; non ci sono test unitari (es. per la
+CLI `scripts/upload-card.js`) né test di API.
+
+#### Configurazione
+
+`playwright.config.js`:
+
+- timeout 30s per test, 7s per le `expect`
+- due progetti: **desktop** (Desktop Chrome) e **mobile** (emulazione Pixel 7),
+  entrambi con `channel: 'chrome'` → serve Chrome installato
+- esecuzione sequenziale (`workers: 1`, `fullyParallel: false`)
+- su CI: 1 retry e `forbidOnly`
+- artefatti solo in caso di fallimento: trace, screenshot e video
+- **web server automatico**: esegue `npm run build` e serve `public/` con `sirv`
+  sulla porta `4173` (`E2E_PORT` per cambiarla); in locale riusa un server già
+  attivo
+
+#### Mock Supabase
+
+`e2e/helpers/supabase-mock.js` intercetta le chiamate con `page.route`:
+
+- `auth/v1/token` → sessione finta con JWT costruito ad hoc
+- `auth/v1/logout` → 204
+- `rest/v1/user_confs` → 406 `PGRST116` (simula "nessuna riga", come `.maybeSingle()`)
+- `rest/v1/user_categories` → `[]`
+
+Il codice client reale viene comunque eseguito (storage sessione, cookie,
+listener): vengono falsate solo le risposte backend, così i test sono
+deterministici e non servono credenziali reali.
+
+#### Cosa coprono
+
+`e2e/auth.spec.js`
+
+- apertura del modal di login, passaggio a "Registrati" e chiusura
+- credenziali errate → mostra l'errore del backend
+- refresh diretto su `/category/:id`: la sessione viene ripristinata prima di
+  caricare le card e una cache vuota vecchia non nasconde una card aggiunta nel
+  frattempo
+- login riuscito: il modal si chiude, compare l'avatar, il cookie Supabase è
+  host-only su localhost, la sessione sopravvive al reload e il logout la cancella
+
+`e2e/navigation.spec.js`
+
+- la schermata iniziale mostra le 4 modalità: Una Card, Due Card, Cantastorie,
+  Giochi
+- flusso Una Card: modalità → `/home` → `/animals` → indietro
+- ogni categoria statica apre il proprio mazzo di card
+- modalità Due Card: mostra sia la card primaria sia la secondaria
+- deep link diretto a `/animals` e comportamento del tasto Indietro del browser
+
+`e2e/card-selector.spec.js`
+
+- le categorie Supabase si caricano anche se il selettore viene aperto mentre
+  `initAuth()` sta ancora ripristinando la sessione (viene ritardato
+  `getSession` di 1,5s)
+- se la prima fetch fallisce con 500, alla riapertura si riprova
+- una cache vuota non viene trattata come risposta valida
+- alla terza apertura si usa la cache JSON, senza nuove richieste (restano 2
+  fetch totali)
+
+`e2e/sections.spec.js`
+
+- **Cantastorie**: elenca le storie, apre la prima, verifica il testo e torna
+  indietro
+- **Giochi**: elenca i giochi, avvia "Tocca la Scatola" (verifica "Livello
+  1/10") e torna alla hub
+- **Info**: si apre dalla schermata iniziale, mostra la riga "Build" con un anno
+  valido e torna indietro
+
+#### Esecuzione
+
+```bash
+npm run test:e2e          # headless, tutti i progetti
+npm run test:e2e:headed   # con browser visibile
+npm run test:e2e:ui       # modalità interattiva Playwright
+npm run test:e2e:report   # apre l'ultimo report HTML
+```
+
+Il report HTML viene salvato in `playwright-report/`; gli artefatti dei test
+falliti in `test-results/`.
+
+#### Cosa non è coperto
+
+- CLI `scripts/upload-card.js`: `upload`, `video`, `move-card`, TTS, ffmpeg e
+  Supabase reale
+- funzioni di cache/auth e componenti Svelte a livello unitario
+- test visuali/regressione
+- non c'è una pipeline CI (`.github/` assente): i test vanno lanciati manualmente
 
 ### Database Setup (Supabase)
 

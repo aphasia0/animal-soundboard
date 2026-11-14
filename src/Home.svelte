@@ -23,6 +23,26 @@
     let currentUser;
     let userCategories = [];
 
+    // Categoria speciale "Casuale": anteprima di 4 card pescate dal mazzo
+    // unico passato da App (native + card Supabase dell'utente).
+    export let randomItems = [];
+    let randomPreview = [];
+    let previewPoolLength = -1;
+
+    function refreshRandomPreview() {
+        const pool = Array.isArray(randomItems) ? randomItems.slice() : [];
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        randomPreview = pool.slice(0, 4);
+    }
+
+    $: if (randomItems.length !== previewPoolLength) {
+        previewPoolLength = randomItems.length;
+        refreshRandomPreview();
+    }
+
     // Category edit/delete state
     let showEditCatModal = false;
     let catToEdit = null;
@@ -161,6 +181,11 @@
         }
     }
 
+    function selectRandom() {
+        triggerVibration(60);
+        dispatch("select", { categoryId: "random" });
+    }
+
     function selectUserCategory(cat) {
         triggerVibration(60);
         dispatch("selectUserCategory", { category: cat });
@@ -205,6 +230,35 @@
         <h3 class="title" in:scale={{ duration: 500, delay: 100 }}>Sound Pad</h3>
 
         <div class="grid">
+            <button
+                class="card enabled random-card"
+                on:click={selectRandom}
+                in:fly={{ y: 50, duration: 600 }}
+            >
+                <div class="random-preview" aria-hidden="true">
+                    {#each Array(4) as _, i}
+                        {#if randomPreview[i]?.image}
+                            <img
+                                class="random-thumb"
+                                src={randomPreview[i].image}
+                                alt=""
+                                loading="lazy"
+                            />
+                        {:else}
+                            <span class="random-thumb random-dice">🎲</span>
+                        {/if}
+                    {/each}
+                </div>
+                <div class="name">All Together</div>
+                <div class="description">
+                    {#if randomItems.length > 0}
+                        {randomItems.length} card · tutte insieme
+                    {:else}
+                        Pesca tra tutte le card
+                    {/if}
+                </div>
+            </button>
+
             {#each categories as category, i}
                 <button
                     class="card"
@@ -212,7 +266,7 @@
                     class:disabled={!category.enabled}
                     on:click={() => selectCategory(category)}
                     disabled={!category.enabled}
-                    in:fly={{ y: 50, duration: 600, delay: i * 80 }}
+                    in:fly={{ y: 50, duration: 600, delay: (i + 1) * 80 }}
                 >
                     <div class="emoji">{category.emoji}</div>
                     <div class="name">{category.name}</div>
@@ -226,7 +280,7 @@
                 <div
                     class="card enabled user-card"
                     on:click={() => selectUserCategory(ucat)}
-                    in:fly={{ y: 50, duration: 600, delay: (categories.length + i) * 80 }}
+                    in:fly={{ y: 50, duration: 600, delay: (categories.length + i + 1) * 80 }}
                 >
                     <!-- Edit & Delete overlay icons -->
                     <div class="cat-actions">
@@ -293,7 +347,7 @@
             <button 
                 class="card add-card" 
                 on:click={handleAddCategory}
-                in:fly={{ y: 50, duration: 600, delay: (categories.length + userCategories.length) * 80 }}
+                in:fly={{ y: 50, duration: 600, delay: (categories.length + userCategories.length + 1) * 80 }}
             >
                 <div class="emoji">＋</div>
                 <div class="name">Aggiungi</div>
@@ -472,6 +526,47 @@
         cursor: pointer;
     }
 
+    /* ── Categoria speciale "Casuale" ──────────────── */
+    .card.random-card {
+        grid-column: 1 / -1;
+        min-height: 230px;
+        padding: 1.5rem 2rem 1.75rem;
+        background: linear-gradient(135deg, #ffffff 0%, #eef2ff 100%);
+        border: 3px solid rgba(102, 126, 234, 0.35);
+        overflow: hidden;
+    }
+    .random-preview {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.65rem;
+        width: 100%;
+        max-width: 430px;
+        margin-bottom: 0.85rem;
+    }
+    .random-thumb {
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: contain;
+        background: white;
+        border-radius: 14px;
+        padding: 0.3rem;
+        box-sizing: border-box;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+    }
+    .random-dice {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+    }
+    .card.random-card .name {
+        font-size: 1.7rem;
+        margin-top: 0.1rem;
+    }
+    .card.random-card .description {
+        font-size: 1rem;
+    }
+
     /* Category action buttons — top-right of user-card */
     .cat-actions {
         position: absolute;
@@ -629,6 +724,22 @@
             min-height: 200px;
             border-radius: 20px;
         }
+        .card.random-card {
+            min-height: 180px;
+            padding: 1.25rem 1rem 1.4rem;
+        }
+        .random-preview {
+            gap: 0.5rem;
+            max-width: 360px;
+            margin-bottom: 0.6rem;
+        }
+        .random-thumb {
+            border-radius: 10px;
+            padding: 0.2rem;
+        }
+        .random-dice {
+            font-size: 1.6rem;
+        }
         .emoji {
             font-size: 4rem;
         }
@@ -655,6 +766,20 @@
         .card {
             padding: 1.5rem 1rem;
             min-height: 150px;
+        }
+        .card.random-card {
+            min-height: 150px;
+            padding: 1rem 0.75rem 1.15rem;
+        }
+        .random-preview {
+            gap: 0.35rem;
+            margin-bottom: 0.45rem;
+        }
+        .card.random-card .name {
+            font-size: 1.3rem;
+        }
+        .card.random-card .description {
+            font-size: 0.8rem;
         }
         .emoji {
             font-size: 3rem;

@@ -28,6 +28,9 @@
     export let cardNavMode = "shuffle"; // 'shuffle' | 'linear' | 'locked'
     export let isUserCategory = false;
     export let loading = false;
+    // 0 = precarica tutto; con un numero precarica solo le prime N card
+    // (usato dal mazzo "Casuale", che può contenere centinaia di card).
+    export let preloadCount = 0;
 
     const dispatch = createEventDispatcher();
     // maxTime in ms; null = infinite (no auto-advance)
@@ -114,8 +117,10 @@
     }
 
     $: if (items && items.length > 0) {
-        preloadSounds(items.map((i) => i.sound));
-        preloadImages(items.map((i) => i.image));
+        const toPreload =
+            preloadCount > 0 ? items.slice(0, preloadCount) : items;
+        preloadSounds(toPreload.map((i) => i.sound));
+        preloadImages(toPreload.map((i) => i.image));
     }
 
     onMount(() => {

@@ -54,6 +54,17 @@ test.describe('single card mode', () => {
       await expect(page.locator('.item-button.primary')).toBeVisible();
     }
   });
+  test('random category opens the giant deck', async ({ page }) => {
+    await page.goto('/home');
+
+    const randomCard = page.locator('.random-card');
+    await expect(randomCard).toBeVisible();
+    await expect(randomCard.locator('.random-preview .random-thumb')).toHaveCount(4);
+
+    await randomCard.click();
+    await expect(page).toHaveURL(/\/random$/);
+    await expect(page.locator('.item-button.primary')).toBeVisible();
+  });
 });
 
 test.describe('dual card mode', () => {

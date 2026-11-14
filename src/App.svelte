@@ -56,12 +56,58 @@
   let addCardCategoryId = null;
 
   let currentUser;
+  // Pool della categoria "Casuale": tutte le card native + quelle Supabase
+  // dell'utente loggato. Dichiarato prima della subscribe per evitare TDZ.
+  let allUserCards = [];
+  let randomItems = [];
+
   user.subscribe((v) => {
     currentUser = v;
     if (v) {
       settingsStore.loadFromSupabase(v.id);
+      fetchAllUserCards(v);
+    } else {
+      allUserCards = [];
     }
   });
+
+  async function fetchAllUserCards(userArg = currentUser, force = false) {
+    if (!userArg) {
+      allUserCards = [];
+      return;
+    }
+    const supabase = getSupabase();
+    if (!supabase) {
+      allUserCards = [];
+      return;
+    }
+
+    try {
+      const userId = userArg.id;
+      const cards = await cachedQuery(
+        dbCacheKeys.allCards(userId),
+        async () => {
+          const { data, error } = await supabase
+            .from("user_cards")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at");
+          if (error) throw error;
+          return (data || []).map((c) => ({
+            id: c.id,
+            name: c.name,
+            image: c.image_url,
+            sound: c.sound_url,
+          }));
+        },
+        { force },
+      );
+      // Ignora risposte arrivate dopo logout o cambio utente.
+      if (currentUser?.id === userId) allUserCards = cards;
+    } catch (error) {
+      console.error("All user cards fetch error:", error);
+    }
+  }
 
   const locale = "it";
 
@@ -123,6 +169,19 @@
     sound: i.sound,
   }));
 
+  // Un unico grande mazzo con tutte le card disponibili.
+  $: randomItems = [
+    ...animalsItems,
+    ...jobsItems,
+    ...musicItems,
+    ...peopleItems,
+    ...vehiclesItems,
+    ...gamesItems,
+    ...sentencesItems,
+    ...instrumentsItems,
+    ...allUserCards,
+  ];
+
   // Reactive user cards fetching
   let userCards = [];
   let loadingUserCards = false;
@@ -176,6 +235,7 @@
     // DB deletion & Cache invalidation
     await supabase.from("user_cards").delete().eq("id", card.id);
     invalidateDbCache();
+    fetchAllUserCards(currentUser, true);
 
     // Storage cleanup
     try {
@@ -207,6 +267,8 @@
       currentView = "stories";
     } else if (path === "/home") {
       currentView = "home";
+    } else if (path === "/random") {
+      currentView = "random";
     } else if (path.startsWith("/category/")) {
       const id = path.split("/")[2];
       selectedUserCategory = { id };
@@ -243,6 +305,7 @@
   function navigate(view, userCat = null) {
     let path = "/";
     if (view === "home") path = "/home";
+    else if (view === "random") path = "/random";
     else if (view === "stories") path = "/stories";
     else if (view === "animals") path = "/animals";
     else if (view === "work") path = "/work";
@@ -316,6 +379,10 @@
       selectedCategory = viewMap[category];
       navigate(viewMap[category]);
       selectedUserCategory = null;
+    } else if (category === "random") {
+      selectedCategory = "random";
+      selectedUserCategory = null;
+      navigate("random");
     } else {
       // Must be a custom category UUID
       selectedUserCategory = { id: category };
@@ -358,6 +425,7 @@
     invalidateDbCache();
     showAddCardModal = false;
     isModalOpen.set(false);
+    fetchAllUserCards(currentUser, true);
     const cat = selectedUserCategory;
     currentView = "";
     setTimeout(() => {
@@ -372,6 +440,7 @@
     if (selectedUserCategory) {
       fetchUserCards(selectedUserCategory.id, true);
     }
+    fetchAllUserCards(currentUser, true);
   }
 </script>
 
@@ -391,6 +460,19 @@
     on:showAuth={handleShowAuth}
     on:addCategory={handleAddCategory}
     on:back={handleBackToMode}
+    {randomItems}
+  />
+{:else if currentView === "random"}
+  <CategoryView
+    items={randomItems}
+    categoryKey="random"
+    cardMode={selectedCardMode}
+    cardNavMode={settings.cardNavMode}
+    preloadCount={24}
+    on:back={handleBack}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
+    on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "animals"}
   <CategoryView

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * upload-card.js — CLI per gestire e creare card su Supabase o in locale
- * con supporto alla generazione AI via prompt (Google Gemini / TTS) o da video.
+ * con supporto alla generazione AI via prompt (Nano Banana / Google TTS) o da video.
  *
  * Comandi:
  *   upload            Crea una card (audio WebM + immagine) da PROMPT o da VIDEO
@@ -9,7 +9,7 @@
  *   cards             Elenca le card (id, nome, categoria, audio, immagine)
  *   move-card         Sposta una o più card in un'altra categoria
  *   delete-card       Elimina una card dal Database e dai bucket Storage (card-images, card-sounds)
- *   create-category   Crea una nuova categoria e stampa il suo UUID
+ *   create-category   Crea una nuova categoria e imposta CAT per i comandi successivi
  *   video             Crea un video locale da una categoria Supabase (TTS del nome + audio card)
  *   help              Mostra l'aiuto
  *
@@ -25,33 +25,30 @@
  *   SUPABASE_PASSWORD=*** node upload-card.js delete-card --name "Leone"
  *
  * ── Flusso da Prompt (Google AI) ──────────────────────────────────────────────
- *   # Genera immagine (Google Imagen/Gemini) e audio voce TTS (Google TTS):
- *   node upload-card.js upload \
+ *   # Genera immagine (Nano Banana / Gemini 3.1 Flash Image) e audio voce TTS:
+ *   GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \
  *     --prompt "Un leone ruggente nella savana" \
- *     --category <uuid_categoria> \
- *     --api-key <GOOGLE_API_KEY>
+ *     --category <uuid_categoria>
  *
  *   # Modalità musica (Lyria 3.5: brano completo, convertito in WebM).
  *   # Senza --seconds conserva tutta la durata generata da Lyria.
- *   node upload-card.js upload \
+ *   GEMINI_API_KEY=*** node upload-card.js upload \
  *     --prompt "Una sinfonia allegra di chitarra" \
  *     --audio-mode music \
- *     --category <uuid_categoria> \
- *     --api-key <GOOGLE_API_KEY>
+ *     --category <uuid_categoria>
  *
- *   # Modalità effetti (ElevenLabs Sound Effects, immagine sempre Google AI).
- *   node upload-card.js upload \
+ *   # Modalità effetti (ElevenLabs Sound Effects, immagine sempre Nano Banana).
+ *   GEMINI_API_KEY=*** ELEVENLABS_API_KEY=*** node upload-card.js upload \
  *     --prompt "Un tuono lontano durante un temporale" \
  *     --audio-mode effects \
  *     --seconds 8 \
- *     --category <uuid_categoria> \
- *     --api-key <GOOGLE_API_KEY> \
- *     --elevenlabs-key <ELEVENLABS_API_KEY>
+ *     --category <uuid_categoria>
  *
  * ── Prerequisiti ─────────────────────────────────────────────────────────────
  *   - Node.js 20+
  *   - ffmpeg nel PATH (verifica con `ffmpeg -version`)
- *   - GOOGLE_API_KEY o GEMINI_API_KEY (passata come env o flag --api-key)
+ *   - GEMINI_API_KEY (immagini Nano Banana + musica Lyria)
+ *   - GOOGLE_TTS_API_KEY (voce Google Text-to-Speech)
  *   - ELEVENLABS_API_KEY (o ELEVENLABS_TOKEN) per --audio-mode effects
  *   - SUPABASE_EMAIL e SUPABASE_PASSWORD per comandi remoti
  */
@@ -76,6 +73,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "..", ".env"), quiet: true });
 dotenv.config({ quiet: true });
 
+// Categoria selezionata da create-category: file locale non versionato.
+const CATEGORY_STATE_FILE = join(__dirname, "..", ".soundpad-cat.env");
+dotenv.config({ path: CATEGORY_STATE_FILE, quiet: true, override: true });
+
+function selectedCategoryRef(flags) {
+  return flagValue(flags, "category") || process.env.CAT || null;
+}
+
 const PUBLIC_DIR = join(__dirname, "..", "public");
 
 // ── Config Supabase ───────────────────────────────────────────────────────────
@@ -90,6 +95,9 @@ const DEFAULT_EMOJI = "📁";
 const IMAGE_SIZE = 1024;
 const SAMPLE_RATE = 44100;
 const LYRIA_MODEL = "lyria-3.5";
+// Nano Banana = famiglia Gemini Flash Image, il modello Google dedicato alla
+// generazione e modifica di immagini.
+const NANO_BANANA_MODEL = "gemini-3.1-flash-image";
 const ELEVENLABS_SFX_ENDPOINT = "https://api.elevenlabs.io/v1/sound-generation";
 const ELEVENLABS_SFX_MODEL = "eleven_text_to_sound_v3";
 const ELEVENLABS_SFX_OUTPUT_FORMAT = "mp3_44100_128";
@@ -106,19 +114,10 @@ const IMAGE_CONTENT_TYPES = {
   gif: "image/gif",
 };
 const SENSITIVE_LOG_KEYS = new Set([
-  "api-key",
-  "api_key",
-  "apiKey",
-  "apikey",
-  "gemini-key",
-  "tts-key",
-  "google-key",
   "elevenlabs-key",
   "elevenlabs-token",
   "effects-key",
   "token",
-  "access_token",
-  "refresh_token",
   "password",
   "authorization",
 ]);
@@ -171,6 +170,17 @@ function redactForLog(value, seen = new WeakSet()) {
 function logParams(label, params) {
   console.error(label);
   console.error(JSON.stringify(redactForLog(params), null, 2));
+}
+
+// ── Autenticazione Google ─────────────────────────────────────────────────────
+// Le API key di AI Studio (auth key "AQ.") viaggiano nell'header x-goog-api-key.
+// Nessun supporto a token OAuth.
+function cleanCredential(value) {
+  return typeof value === "string" ? value.trim() : value;
+}
+
+function googleAuthHeaders(apiKey) {
+  return { "x-goog-api-key": apiKey };
 }
 
 function parseFlags(tokens) {
@@ -236,30 +246,16 @@ function parseUploadArgs(flags) {
   const rawSeconds = flagValue(flags, "seconds");
   const seconds = rawSeconds === null ? null : Number(rawSeconds);
 
-  const sharedKey =
-    flagValue(flags, "api-key") ||
-    flagValue(flags, "google-key") ||
-    flagValue(flags, "token") ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.GOOGLE_ACCESS_TOKEN;
+  const geminiApiKey = cleanCredential(process.env.GEMINI_API_KEY);
+  const ttsApiKey = cleanCredential(process.env.GOOGLE_TTS_API_KEY);
 
-  const geminiApiKey =
-    flagValue(flags, "gemini-key") ||
-    process.env.GEMINI_API_KEY ||
-    sharedKey;
-
-  const ttsApiKey =
-    flagValue(flags, "tts-key") ||
-    process.env.GOOGLE_TTS_API_KEY ||
-    process.env.GOOGLE_CLOUD_API_KEY ||
-    sharedKey;
-
-  const elevenLabsApiKey =
+  const elevenLabsApiKey = cleanCredential(
     flagValue(flags, "elevenlabs-key") ||
-    flagValue(flags, "elevenlabs-token") ||
-    flagValue(flags, "effects-key") ||
-    process.env.ELEVENLABS_API_KEY ||
-    process.env.ELEVENLABS_TOKEN;
+      flagValue(flags, "elevenlabs-token") ||
+      flagValue(flags, "effects-key") ||
+      process.env.ELEVENLABS_API_KEY ||
+      process.env.ELEVENLABS_TOKEN
+  );
 
   return {
     mode: flagValue(flags, "mode") || "remote", // 'local' | 'remote'
@@ -278,7 +274,7 @@ function parseUploadArgs(flags) {
     image: flagValue(flags, "image"),
     name,
     key,
-    category: flagValue(flags, "category"),
+    category: selectedCategoryRef(flags),
   };
 }
 
@@ -372,16 +368,22 @@ async function synthesizeGoogleTtsMp3(text, apiKey, options = {}) {
   console.error(`🌐 POST ${endpoint}`);
   logParams("   Parametri TTS:", ttsBody);
 
-  const response = await fetch(`${endpoint}?key=${apiKey}`, {
+  const response = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...googleAuthHeaders(apiKey),
+    },
     body: JSON.stringify(ttsBody),
   });
   console.error(`   ← HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Google TTS Fallito (${response.status}): ${errText}`);
+    const hint = response.status === 401
+      ? "\nSuggerimento: verifica che GOOGLE_TTS_API_KEY sia una API key valida."
+      : "";
+    throw new Error(`Google TTS Fallito (${response.status}): ${errText}${hint}`);
   }
 
   const data = await response.json();
@@ -595,7 +597,7 @@ async function generateElevenLabsSoundEffect(prompt, apiKey, seconds = null) {
   );
 }
 
-// ── Generazione Immagine Google AI (Gemini / Imagen) ───────────────────────────
+// ── Generazione Immagine Google AI (Nano Banana) ──────────────────────────────
 function cropAndResizeSquare(inputImgPath) {
   const tmpSquare = join(tmpdir(), `card-img-square-${Date.now()}.jpg`);
   const cropCommand =
@@ -608,24 +610,39 @@ function cropAndResizeSquare(inputImgPath) {
   return tmpSquare;
 }
 
-async function generateGoogleImage(prompt, apiKey) {
-  console.log(`🖼️  Google AI: genero l'immagine per "${prompt}"...`);
+function saveGeneratedImage(imageBase64, mimeType = null) {
+  const extension = mimeType?.includes("png")
+    ? "png"
+    : mimeType?.includes("webp")
+      ? "webp"
+      : "jpg";
+  const tmpImg = join(tmpdir(), `card-gen-${Date.now()}.${extension}`);
+  writeFileSync(tmpImg, Buffer.from(imageBase64, "base64"));
+  return cropAndResizeSquare(tmpImg);
+}
 
-  // 1. Tenta con l'SDK @google/genai se disponibile
+async function generateGoogleImage(prompt, apiKey) {
+  console.log(
+    `🍌 Nano Banana (${NANO_BANANA_MODEL}): genero l'immagine per "${prompt}"...`
+  );
+  const imagePrompt =
+    `A cute, colorful children's illustration for an AAC card: ${prompt}. ` +
+    "Clean background, bright friendly style, no text.";
+
+  // 1. SDK @google/genai (percorso principale)
   try {
     const { GoogleGenAI } = await import("@google/genai");
     const ai = new GoogleGenAI({ apiKey });
     const imageRequest = {
-      model: "gemini-3.1-flash-image-preview",
-      contents: `A cute, colorful children's illustration for an AAC card: ${prompt}. Clean background, bright friendly style, no text.`,
+      model: NANO_BANANA_MODEL,
+      contents: imagePrompt,
       config: {
         imageConfig: {
           aspectRatio: "1:1",
-          imageSize: "1K",
         },
       },
     };
-    console.error("🌐 POST generateContent (immagine SDK)");
+    console.error("🌐 POST generateContent (Nano Banana SDK)");
     logParams("   Parametri immagine:", imageRequest);
 
     const response = await ai.models.generateContent(imageRequest);
@@ -640,54 +657,72 @@ async function generateGoogleImage(prompt, apiKey) {
             mimeType: part.inlineData.mimeType || null,
             imageBytes: imgBuf.length,
           });
-          const tmpImg = join(tmpdir(), `card-gen-${Date.now()}.jpg`);
-          writeFileSync(tmpImg, imgBuf);
-          return cropAndResizeSquare(tmpImg);
+          return saveGeneratedImage(
+            part.inlineData.data,
+            part.inlineData.mimeType
+          );
         }
       }
     }
+    console.warn(
+      "Avviso SDK Nano Banana: nessuna immagine nella risposta. Tento via REST..."
+    );
   } catch (err) {
-    console.warn(`Avviso SDK Google GenAI: ${err.message}. Tento via endpoint Imagen 3...`);
+    console.warn(
+      `Avviso SDK Nano Banana: ${err.message}. Tento via REST...`
+    );
   }
 
-  // 2. Fallback via Imagen 3 REST API endpoint
-  const imagenEndpoint =
-    "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages";
-  const imagenBody = {
-    prompt: `A cute, colorful children's book illustration for an AAC card: ${prompt}. Friendly artwork, simple clean background, no text.`,
-    config: {
-      numberOfImages: 1,
-      aspectRatio: "1:1",
-      outputMimeType: "image/jpeg",
+  // 2. Fallback REST sullo stesso modello Nano Banana
+  const endpoint =
+    `https://generativelanguage.googleapis.com/v1beta/models/` +
+    `${NANO_BANANA_MODEL}:generateContent`;
+  const body = {
+    contents: [{ role: "user", parts: [{ text: imagePrompt }] }],
+    generationConfig: {
+      responseModalities: ["IMAGE"],
+      imageConfig: {
+        aspectRatio: "1:1",
+      },
     },
   };
-  console.error(`🌐 POST ${imagenEndpoint}`);
-  logParams("   Parametri Imagen:", imagenBody);
-  const response = await fetch(`${imagenEndpoint}?key=${apiKey}`, {
+  console.error(`🌐 POST ${endpoint}`);
+  logParams("   Parametri Nano Banana:", body);
+  const response = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(imagenBody),
+    headers: {
+      "Content-Type": "application/json",
+      ...googleAuthHeaders(apiKey),
+    },
+    body: JSON.stringify(body),
   });
   console.error(`   ← HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Google Imagen 3 Fallito (${response.status}): ${errText}`);
+    const hint = response.status === 401
+      ? "\nSuggerimento: verifica che GEMINI_API_KEY sia una API key completa " +
+        "di AI Studio (AQ.…) abilitata alla Generative Language API."
+      : "";
+    throw new Error(`Nano Banana Fallito (${response.status}): ${errText}${hint}`);
   }
 
   const data = await response.json();
-  const b64 = data.generatedImages?.[0]?.image?.imageBytes;
-  if (!b64) {
-    throw new Error("Immagine non restituita da Google Imagen.");
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const imagePart = parts.find((part) => part.inlineData?.data);
+  if (!imagePart) {
+    throw new Error("Immagine non restituita da Nano Banana.");
   }
-  logParams("   Risposta Imagen:", {
-    generatedImages: data.generatedImages?.length || 0,
-    imageBytes: Buffer.byteLength(b64, "base64"),
+  logParams("   Risposta Nano Banana:", {
+    candidates: data.candidates?.length || 0,
+    mimeType: imagePart.inlineData.mimeType || null,
+    imageBytes: Buffer.byteLength(imagePart.inlineData.data, "base64"),
   });
 
-  const tmpImg = join(tmpdir(), `card-gen-${Date.now()}.jpg`);
-  writeFileSync(tmpImg, Buffer.from(b64, "base64"));
-  return cropAndResizeSquare(tmpImg);
+  return saveGeneratedImage(
+    imagePart.inlineData.data,
+    imagePart.inlineData.mimeType
+  );
 }
 
 // ── ffmpeg Clip Helper (da video) ─────────────────────────────────────────────
@@ -1109,8 +1144,8 @@ async function runUpload(flags) {
     start: Number.isFinite(start) ? start : null,
     end: Number.isFinite(end) ? end : null,
     image,
-    geminiApiKey: geminiApiKey ? "configurata" : "assente",
-    ttsApiKey: ttsApiKey ? "configurata" : "assente",
+    geminiApiKey: geminiApiKey ? "GEMINI_API_KEY configurata" : "GEMINI_API_KEY assente",
+    ttsApiKey: ttsApiKey ? "GOOGLE_TTS_API_KEY configurata" : "GOOGLE_TTS_API_KEY assente",
     elevenLabsApiKey: elevenLabsApiKey ? "configurata" : "assente",
   });
 
@@ -1137,8 +1172,7 @@ async function runUpload(flags) {
         const musicKey = geminiApiKey;
         if (!musicKey) {
           throw new Error(
-            "API Key Google mancante per la generazione musica con Lyria. Passa --api-key <key> " +
-              "oppure imposta GOOGLE_API_KEY o GEMINI_API_KEY."
+            "GEMINI_API_KEY mancante per la generazione musica con Lyria."
           );
         }
         const durationLabel = seconds === null ? "nessun taglio" : `${seconds} secondi`;
@@ -1163,8 +1197,7 @@ async function runUpload(flags) {
       } else {
         if (!ttsApiKey) {
           throw new Error(
-            "API Key Google mancante per la sintesi vocale. Passa --api-key <key> " +
-              "oppure imposta GOOGLE_API_KEY o GOOGLE_TTS_API_KEY."
+            "GOOGLE_TTS_API_KEY mancante per la sintesi vocale."
           );
         }
         console.log("Modalità Audio: VOICE (generazione Google Text-to-Speech)...");
@@ -1174,11 +1207,10 @@ async function runUpload(flags) {
       // 2. Image generation
       if (!geminiApiKey) {
         throw new Error(
-          "API Key Google mancante per la generazione immagini. Passa --api-key <key> " +
-            "oppure imposta GOOGLE_API_KEY o GEMINI_API_KEY."
+          "GEMINI_API_KEY mancante per la generazione immagini."
         );
       }
-      console.log("Generazione Immagine con servizi Google AI...");
+      console.log(`Generazione Immagine con Nano Banana (${NANO_BANANA_MODEL})...`);
       tempImage = await generateGoogleImage(fullPrompt, geminiApiKey);
 
       args.audioWebm = tempWebmAudio;
@@ -1189,7 +1221,7 @@ async function runUpload(flags) {
         console.error(
           "Parametri mancanti per upload. Usa:\n\n" +
             "  # DA PROMPT (Google AI):\n" +
-            "  GOOGLE_API_KEY=*** node upload-card.js upload \\\n" +
+            "  GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \\\n" +
             '    --prompt "Un leone ruggente nella savana" \\\n' +
             "    --category <uuid_categoria> [--audio-mode voice|music|effects] [--name \"Leone\"]\n\n" +
             "  # DA VIDEO/FILE:\n" +
@@ -1276,7 +1308,7 @@ async function runCategories(flags) {
 }
 
 async function runCards(flags) {
-  const categoryRef = flagValue(flags, "category");
+  const categoryRef = selectedCategoryRef(flags);
 
   const { token } = await connect();
   console.error("Carico categorie e card...");
@@ -1622,7 +1654,7 @@ async function runMoveCard(flags) {
 async function runDeleteCard(flags) {
   const cardId = flagValue(flags, "id");
   const cardName = flagValue(flags, "name");
-  const categoryRef = flagValue(flags, "category");
+  const categoryRef = selectedCategoryRef(flags);
   const deleteAll = Boolean(flags.all);
   const dryRun = Boolean(flags["dry-run"]);
 
@@ -1732,6 +1764,16 @@ async function runCreateCategory(flags) {
     emoji,
   });
 
+  // Salva la categoria corrente così i comandi successivi la usano di default.
+  process.env.CAT = category.id;
+  writeFileSync(CATEGORY_STATE_FILE, `CAT=${category.id}\n`);
+  console.error(`CAT=${category.id} salvata in ${CATEGORY_STATE_FILE}`);
+
+  if (flags.export) {
+    console.log(`export CAT=${category.id}`);
+    return;
+  }
+
   if (flags.json) {
     console.log(JSON.stringify(category, null, 2));
     return;
@@ -1740,6 +1782,8 @@ async function runCreateCategory(flags) {
   console.log(`\nCategoria creata!`);
   console.log(`  ID:    ${category.id}`);
   console.log(`  Nome:  ${category.emoji} ${category.name}`);
+  console.log(`\nCAT=${category.id} impostata automaticamente per i prossimi comandi.`);
+  console.log(`Per esportarla anche in questa shell: export CAT=${category.id}`);
 }
 
 // ── Comando: video (categoria Supabase → video locale) ────────────────────────
@@ -1906,21 +1950,15 @@ async function concatVideoSegments(segmentPaths, outputPath, workDir) {
 }
 
 async function runVideo(flags) {
-  const categoryRef = flagValue(flags, "category");
+  const categoryRef = selectedCategoryRef(flags);
   if (!categoryRef) {
     throw new Error('Parametro mancante: --category <uuid_categoria|nome>');
   }
 
-  const apiKey =
-    flagValue(flags, "tts-key") ||
-    flagValue(flags, "api-key") ||
-    process.env.GOOGLE_TTS_API_KEY ||
-    process.env.GOOGLE_CLOUD_API_KEY ||
-    process.env.GOOGLE_API_KEY;
+  const apiKey = cleanCredential(process.env.GOOGLE_TTS_API_KEY);
   if (!apiKey) {
     throw new Error(
-      "API Key Google mancante per il text-to-speech. Passa --api-key <key> " +
-        "oppure imposta GOOGLE_API_KEY o GOOGLE_TTS_API_KEY."
+      "GOOGLE_TTS_API_KEY mancante per il text-to-speech."
     );
   }
 
@@ -2104,11 +2142,16 @@ ESEMPI PER OGNI COMANDO
   SUPABASE_PASSWORD=*** node upload-card.js categories --json
 
 2. Comando: create-category (Creazione categoria)
-  # Crea una nuova categoria specificando nome ed emoji
+  # Crea una nuova categoria specificando nome ed emoji.
+  # L'UUID viene salvato in .soundpad-cat.env e diventa il valore di CAT
+  # usato dai comandi successivi quando --category viene omesso.
   SUPABASE_PASSWORD=*** node upload-card.js create-category --name "Strumenti" --emoji "🎺"
 
   # Crea una categoria con emoji predefinita (📁)
   SUPABASE_PASSWORD=*** node upload-card.js create-category --name "Natura"
+
+  # Imposta CAT anche nella shell corrente (eval):
+  eval "$(SUPABASE_PASSWORD=*** node upload-card.js create-category --name "Natura" --export)"
 
 3. Comando: cards (Elenco card)
   # Elenca tutte le card dell'utente in tutte le categorie
@@ -2157,14 +2200,14 @@ ESEMPI PER OGNI COMANDO
   SUPABASE_PASSWORD=*** node upload-card.js delete-card --name "Gatto" --all
 
 6. Comando: upload (Creazione e caricamento card)
-  # A) Da PROMPT con Google AI (Voce TTS casuale + Immagine Gemini/Imagen):
-  GOOGLE_API_KEY=*** node upload-card.js upload \\
+  # A) Da PROMPT con Google AI (Voce TTS casuale + Immagine Nano Banana):
+  GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \\
     --prompt "Leone" \\
     --additional-info "un maestoso leone che ruggisce nella savana al tramonto" \\
     --category <uuid_categoria>
 
   # B) Da PROMPT in modalità MUSICA con Google Lyria 3.5:
-  GOOGLE_API_KEY=*** node upload-card.js upload \\
+  GEMINI_API_KEY=*** node upload-card.js upload \\
     --prompt "Chitarra" \\
     --additional-info "una chitarra acustica di legno con note musicali colorate" \\
     --audio-mode music \\
@@ -2172,7 +2215,7 @@ ESEMPI PER OGNI COMANDO
     --category <uuid_categoria>
 
   # C) Da PROMPT in modalità EFFETTI con ElevenLabs Sound Effects:
-  GOOGLE_API_KEY=*** ELEVENLABS_API_KEY=*** node upload-card.js upload \\
+  GEMINI_API_KEY=*** ELEVENLABS_API_KEY=*** node upload-card.js upload \\
     --prompt "Un tuono lontano durante un temporale" \\
     --additional-info "pioggia intensa, atmosfera cinematografica" \\
     --audio-mode effects \\
@@ -2180,7 +2223,7 @@ ESEMPI PER OGNI COMANDO
     --category <uuid_categoria>
 
   # D) Da PROMPT in LOCALE (salva gli asset in public/):
-  GOOGLE_API_KEY=*** node upload-card.js upload \\
+  GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \\
     --prompt "Un albero fiorito" \\
     --category animals \\
     --mode local
@@ -2199,19 +2242,19 @@ ESEMPI PER OGNI COMANDO
   # Scarica tutte le card della categoria, genera il TTS del nome e monta
   # per ogni card: immagine fissa + [TTS nome][audio della card].
   # I segmenti vengono uniti in un unico video con cambio immagine a fine audio.
-  SUPABASE_PASSWORD=*** GOOGLE_API_KEY=*** node upload-card.js video \\
+  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
     --category "Animali" --out ./videos
 
   # Un video separato per ogni card (invece di un unico montaggio)
-  SUPABASE_PASSWORD=*** GOOGLE_API_KEY=*** node upload-card.js video \\
+  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
     --category "Animali" --per-card --out ./videos
 
   # Ordine audio inverso (prima il suono della card, poi il nome) e pausa di 0.4s
-  SUPABASE_PASSWORD=*** GOOGLE_API_KEY=*** node upload-card.js video \\
+  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
     --category <uuid_categoria> --audio-order sound-first --gap 0.4
 
   # Formato verticale, voce fissa e nome file personalizzato
-  SUPABASE_PASSWORD=*** GOOGLE_API_KEY=*** node upload-card.js video \\
+  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
     --category "Animali" --size 1080x1920 --voice it-IT-Neural2-A --name animali
 
 8. Comando: help (Aiuto)
@@ -2223,11 +2266,11 @@ PARAMETRI D'AMBIENTE E FLAG GLOBALI
 Variabili d'ambiente:
   SUPABASE_PASSWORD   Password dell'account Supabase (richiesta per comandi remoti)
   SUPABASE_EMAIL      Email dell'account Supabase
-  GOOGLE_API_KEY       API Key unica per Google AI (Gemini + Lyria + Text-to-Speech)
-  GEMINI_API_KEY       API Key specifica per Gemini / Imagen / Lyria
-  GOOGLE_TTS_API_KEY   API Key specifica per Google Text-to-Speech
-  ELEVENLABS_API_KEY   API Key ElevenLabs per --audio-mode effects
-  ELEVENLABS_TOKEN     Alias supportato per ELEVENLABS_API_KEY
+  GEMINI_API_KEY      API key AI Studio per immagini Nano Banana e musica Lyria
+  GOOGLE_TTS_API_KEY  API key per Google Text-to-Speech
+  ELEVENLABS_API_KEY  API Key ElevenLabs per --audio-mode effects
+  ELEVENLABS_TOKEN    Alias supportato per ELEVENLABS_API_KEY
+  CAT                 Categoria corrente, impostata da create-category
 
 Flag upload da Prompt:
   --prompt <testo>          Titolo/messaggio principale della card (es. "Gatto")
@@ -2235,12 +2278,9 @@ Flag upload da Prompt:
   --audio-mode <tipo>       voice (Google TTS), music (Google Lyria 3.5) o effects (ElevenLabs) [default: voice]
   --music-model lyria-3.5   Unico modello disponibile per la musica [default: lyria-3.5]
   --seconds <n>             Durata audio; music: taglio opzionale, effects: parametro API 0.5-30s
-  --api-key <key>           Google API Key Unica (oppure imposta GOOGLE_API_KEY in .env)
-  --gemini-key <key>        Chiave specifica per Gemini/Lyria (o GEMINI_API_KEY)
-  --tts-key <key>           Chiave specifica per TTS (o GOOGLE_TTS_API_KEY)
   --elevenlabs-key <key>    Chiave ElevenLabs (o ELEVENLABS_API_KEY / ELEVENLABS_TOKEN)
   --name <nome>             Nome della card (default: testo del prompt)
-  --category <uuid|nome>    UUID (per remoto) o cartella public/ (per locale)
+  --category <uuid|nome>    UUID (per remoto) o cartella public/ (per locale) [default: CAT]
   --mode remote|local       remote (upload Supabase) o local (salva in public/)
 
 Log diagnostici:
@@ -2281,7 +2321,6 @@ Flag video:
                             Voce TTS fissa (una sola voce per tutto il video)
   --lang <codice>           Lingua TTS [default: it-IT]
   --limit <n>               Limita il video alle prime n card
-  --tts-key <key>           Chiave specifica per TTS (o GOOGLE_TTS_API_KEY)
 `.trim());
 }
 

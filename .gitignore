@@ -2,6 +2,9 @@
 scripts/node_modules/
 /public/build/
 
+# Categoria corrente salvata da create-category
+/.soundpad-cat.env
+
 .DS_Store
 
 # Playwright
