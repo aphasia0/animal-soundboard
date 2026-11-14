@@ -1,4 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { mockPublicContent } from './helpers/supabase-mock.js';
+
+test.beforeEach(async ({ page }) => {
+  await mockPublicContent(page);
+});
 
 test.describe('stories', () => {
   test('lists stories and opens one', async ({ page }) => {

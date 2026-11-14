@@ -11,36 +11,35 @@
   import { cachedQuery, dbCacheKeys, invalidateDbCache } from "./dbCache.js";
   import { settingsStore } from "./settingsStore.js";
   import { isModalOpen } from "./modalStore.js";
+  import {
+    findPublicCategory,
+    loadPublicContent,
+    publicContent,
+  } from "./publicContentStore.js";
 
-  // Data imports
-  import { animals } from "./animals.js";
-  import { jobs } from "./jobs.js";
-  import { music } from "./music.js";
-  import { people } from "./people.js";
-  import { vehicles } from "./vehicles.js";
-  import { games } from "./games.js";
-  import { sentences } from "./sentences.js";
+  // Storie e giochi restano contenuti dedicati, non card pubbliche.
   import { stories } from "./stories.js";
-  import { instruments } from "./instruments.js";
   import StoryView from "./StoryView.svelte";
   import StorySelect from "./StorySelect.svelte";
   import GamesView from "./GamesView.svelte";
   import InfoView from "./InfoView.svelte";
-  import {
-    getAnimalName,
-    getJobName,
-    getMusicName,
-    getPersonName,
-    getVehicleName,
-    getGameName,
-    getSentenceName,
-    getInstrumentName,
-  } from "./i18n.js";
+
+  // Gli indirizzi leggibili (/animals, /verbi, ...) vengono risolti tramite
+  // lo slug della categoria pubblica. Le private usano /category/<uuid>.
+  const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   let currentView = "modeSelect";
   let selectedCategory = null;
+  let selectedPublicCategory = null;
   let selectedUserCategory = null;
+  let routeCategoryId = null;
+  let publicCategories = [];
+  let publicContentLoaded = false;
+  let publicContentLoading = false;
+  let publicContentError = null;
   let previousView = "modeSelect";
+  let previousPayload = null;
 
   let selectedCardMode = 1;
   let settings;
@@ -56,9 +55,9 @@
   let addCardCategoryId = null;
 
   let currentUser;
-  // Pool della categoria "Casuale": tutte le card native + quelle Supabase
-  // dell'utente loggato. Dichiarato prima della subscribe per evitare TDZ.
+  // Pool della categoria "Casuale": card pubbliche + card personali dell'utente.
   let allUserCards = [];
+  let allPublicCards = [];
   let randomItems = [];
 
   user.subscribe((v) => {
@@ -70,6 +69,46 @@
       allUserCards = [];
     }
   });
+
+  publicContent.subscribe((state) => {
+    publicCategories = state.categories;
+    publicContentLoaded = state.loaded;
+    publicContentLoading = state.loading;
+    publicContentError = state.error;
+    allPublicCards = state.categories.flatMap((category) => category.items);
+    applyCategoryRoute();
+  });
+
+  // Un deep link /category/<id> può indicare sia una categoria pubblica sia
+  // una privata. Finché le categorie pubbliche non sono caricate aspettiamo,
+  // poi scegliamo la destinazione corretta.
+  $: categoryRoutePending =
+    Boolean(routeCategoryId) && !publicContentLoaded && !publicContentError;
+
+  function applyCategoryRoute() {
+    if (!routeCategoryId) return;
+    const publicCategory = findPublicCategory(publicCategories, routeCategoryId);
+    if (publicCategory) {
+      selectedPublicCategory = publicCategory;
+      selectedUserCategory = null;
+      selectedCategory = publicCategory.id;
+      currentView = "publicCategory";
+      return;
+    }
+    if (!publicContentLoaded && !publicContentError) return;
+    if (UUID_RE.test(routeCategoryId)) {
+      selectedPublicCategory = null;
+      selectedUserCategory = { id: routeCategoryId };
+      selectedCategory = "userCategory";
+      currentView = "userCategory";
+      return;
+    }
+    // Slug pubblico inesistente: non è una categoria privata.
+    routeCategoryId = null;
+    selectedPublicCategory = null;
+    selectedUserCategory = null;
+    currentView = "modeSelect";
+  }
 
   async function fetchAllUserCards(userArg = currentUser, force = false) {
     if (!userArg) {
@@ -109,78 +148,8 @@
     }
   }
 
-  const locale = "it";
-
-  // Normalized data for native categories
-  $: animalsItems = animals.map((a) => ({
-    id: a.id,
-    key: a.key,
-    name: getAnimalName(a.key, locale),
-    image: a.image,
-    sound: a.sound,
-  }));
-  $: jobsItems = jobs.map((j) => ({
-    id: j.id,
-    key: j.key,
-    name: getJobName(j.key, locale),
-    image: j.image,
-    sound: j.sound,
-  }));
-  $: musicItems = music.map((m) => ({
-    id: m.id,
-    key: m.key,
-    name: getMusicName(m.key, locale),
-    image: m.image,
-    sound: m.sound,
-  }));
-  $: peopleItems = people.map((p) => ({
-    id: p.id,
-    key: p.key,
-    name: getPersonName(p.key, locale),
-    image: p.image,
-    sound: p.sound,
-  }));
-  $: vehiclesItems = vehicles.map((v) => ({
-    id: v.id,
-    key: v.key,
-    name: getVehicleName(v.key, locale),
-    image: v.image,
-    sound: v.sound,
-  }));
-  $: gamesItems = games.map((g) => ({
-    id: g.id,
-    key: g.key,
-    name: getGameName(g.key, locale),
-    image: g.image,
-    sound: g.sound,
-  }));
-  $: sentencesItems = sentences.map((s) => ({
-    id: s.id,
-    key: s.key,
-    name: getSentenceName(s.key, locale),
-    image: s.image,
-    sound: s.sound,
-  }));
-  $: instrumentsItems = instruments.map((i) => ({
-    id: i.id,
-    key: i.key,
-    name: getInstrumentName(i.key, locale),
-    image: i.image,
-    sound: i.sound,
-  }));
-
   // Un unico grande mazzo con tutte le card disponibili.
-  $: randomItems = [
-    ...animalsItems,
-    ...jobsItems,
-    ...musicItems,
-    ...peopleItems,
-    ...vehiclesItems,
-    ...gamesItems,
-    ...sentencesItems,
-    ...instrumentsItems,
-    ...allUserCards,
-  ];
+  $: randomItems = [...allPublicCards, ...allUserCards];
 
   // Reactive user cards fetching
   let userCards = [];
@@ -256,44 +225,50 @@
 
   onMount(() => {
     initAuth();
+    loadPublicContent().catch((error) => {
+      console.error("Public content fetch error:", error);
+    });
     window.addEventListener("popstate", handlePopState);
     syncViewWithUrl();
     return () => window.removeEventListener("popstate", handlePopState);
   });
 
+  function clearCategoryRoute() {
+    routeCategoryId = null;
+    selectedPublicCategory = null;
+    selectedUserCategory = null;
+  }
+
   function syncViewWithUrl() {
     const path = window.location.pathname;
     if (path === "/stories") {
+      clearCategoryRoute();
       currentView = "stories";
     } else if (path === "/home") {
+      clearCategoryRoute();
       currentView = "home";
     } else if (path === "/random") {
+      clearCategoryRoute();
       currentView = "random";
-    } else if (path.startsWith("/category/")) {
-      const id = path.split("/")[2];
-      selectedUserCategory = { id };
-      currentView = "userCategory";
-    } else if (path === "/animals") {
-      currentView = "animals";
-    } else if (path === "/work") {
-      currentView = "work";
-    } else if (path === "/music") {
-      currentView = "music";
-    } else if (path === "/people") {
-      currentView = "people";
-    } else if (path === "/vehicles") {
-      currentView = "vehicles";
-    } else if (path === "/games") {
-      currentView = "games";
-    } else if (path === "/sentences") {
-      currentView = "sentences";
-    } else if (path === "/instruments") {
-      currentView = "instruments";
     } else if (path === "/gameshub") {
+      clearCategoryRoute();
       currentView = "gameshub";
     } else if (path === "/info") {
+      clearCategoryRoute();
       currentView = "info";
+    } else if (path.startsWith("/category/")) {
+      const id = decodeURIComponent(path.split("/")[2] || "");
+      selectedPublicCategory = null;
+      selectedUserCategory = null;
+      routeCategoryId = id || null;
+      applyCategoryRoute();
+    } else if (path.indexOf("/", 1) === -1 && path.length > 1) {
+      selectedPublicCategory = null;
+      selectedUserCategory = null;
+      routeCategoryId = decodeURIComponent(path.slice(1));
+      applyCategoryRoute();
     } else {
+      clearCategoryRoute();
       currentView = "modeSelect";
     }
   }
@@ -302,30 +277,52 @@
     syncViewWithUrl();
   }
 
-  function navigate(view, userCat = null) {
+  function categoryPath(category) {
+    if (category.slug) return `/${category.slug}`;
+    return `/category/${category.id}`;
+  }
+
+  function navigate(view, payload = null) {
     let path = "/";
     if (view === "home") path = "/home";
     else if (view === "random") path = "/random";
     else if (view === "stories") path = "/stories";
-    else if (view === "animals") path = "/animals";
-    else if (view === "work") path = "/work";
-    else if (view === "music") path = "/music";
-    else if (view === "people") path = "/people";
-    else if (view === "vehicles") path = "/vehicles";
-    else if (view === "games") path = "/games";
-    else if (view === "sentences") path = "/sentences";
-    else if (view === "instruments") path = "/instruments";
     else if (view === "gameshub") path = "/gameshub";
-    else if (view === "userCategory" && userCat)
-      path = `/category/${userCat.id}`;
     else if (view === "info") path = "/info";
+    else if (view === "publicCategory" && payload)
+      path = categoryPath(payload);
+    else if (view === "userCategory" && payload)
+      path = `/category/${payload.id}`;
+
+    if (view === "publicCategory" || view === "userCategory") {
+      routeCategoryId = payload?.id ?? null;
+    } else {
+      routeCategoryId = null;
+    }
 
     if (window.location.pathname !== path) {
       window.history.pushState({}, "", path);
     }
-    if (currentView !== "info") previousView = currentView;
+    if (currentView !== "info") {
+      previousView = currentView;
+      previousPayload =
+        currentView === "publicCategory"
+          ? selectedPublicCategory
+          : currentView === "userCategory"
+            ? selectedUserCategory
+            : null;
+    }
     currentView = view;
-    if (userCat) selectedUserCategory = userCat;
+
+    if (view === "publicCategory") {
+      selectedPublicCategory = payload;
+      selectedUserCategory = null;
+      selectedCategory = payload?.id ?? null;
+    } else if (view === "userCategory") {
+      selectedUserCategory = payload;
+      selectedPublicCategory = null;
+      selectedCategory = "userCategory";
+    }
   }
 
   function handleModeSelect(event) {
@@ -343,8 +340,17 @@
 
   function handleCategorySelect(event) {
     const { categoryId } = event.detail;
-    selectedCategory = categoryId;
-    navigate(categoryId);
+    if (categoryId === "random") {
+      selectedCategory = "random";
+      selectedPublicCategory = null;
+      selectedUserCategory = null;
+      navigate("random");
+      return;
+    }
+    const publicCategory = findPublicCategory(publicCategories, categoryId);
+    if (publicCategory) {
+      navigate("publicCategory", publicCategory);
+    }
   }
 
   function handleUserCategorySelect(event) {
@@ -354,7 +360,7 @@
 
   function handleBack() {
     selectedCategory = null;
-    selectedUserCategory = null;
+    clearCategoryRoute();
     navigate("home");
   }
 
@@ -364,31 +370,24 @@
 
   function handleJumpTo(e) {
     const { category } = e.detail;
-    const viewMap = {
-      animals: "animals",
-      work: "work",
-      music: "music",
-      people: "people",
-      vehicles: "vehicles",
-      games: "games",
-      sentences: "sentences",
-      instruments: "instruments",
-      stories: "stories",
-    };
-    if (viewMap[category]) {
-      selectedCategory = viewMap[category];
-      navigate(viewMap[category]);
-      selectedUserCategory = null;
-    } else if (category === "random") {
+    if (category === "random") {
       selectedCategory = "random";
-      selectedUserCategory = null;
+      clearCategoryRoute();
       navigate("random");
-    } else {
-      // Must be a custom category UUID
-      selectedUserCategory = { id: category };
-      selectedCategory = "userCategory";
-      navigate("userCategory", selectedUserCategory);
+      return;
     }
+    if (category === "stories") {
+      selectedCategory = "stories";
+      clearCategoryRoute();
+      navigate("stories");
+      return;
+    }
+    const publicCategory = findPublicCategory(publicCategories, category);
+    if (publicCategory) {
+      navigate("publicCategory", publicCategory);
+      return;
+    }
+    navigate("userCategory", { id: category });
   }
 
   function handleShowAuth() {
@@ -452,7 +451,7 @@
     on:openInfo={handleOpenInfo}
   />
 {:else if currentView === "info"}
-  <InfoView on:back={() => navigate(previousView)} />
+  <InfoView on:back={() => navigate(previousView, previousPayload)} />
 {:else if currentView === "home"}
   <Home
     on:select={handleCategorySelect}
@@ -460,7 +459,24 @@
     on:showAuth={handleShowAuth}
     on:addCategory={handleAddCategory}
     on:back={handleBackToMode}
+    publicCategories={publicCategories}
+    loadingPublic={publicContentLoading}
+    publicError={publicContentError}
     {randomItems}
+  />
+{:else if categoryRoutePending}
+  <div class="route-loading" role="status">Caricamento…</div>
+{:else if currentView === "publicCategory"}
+  <CategoryView
+    items={selectedPublicCategory?.items || []}
+    categoryId={selectedPublicCategory?.id}
+    loading={publicContentLoading}
+    cardMode={selectedCardMode}
+    cardNavMode={settings.cardNavMode}
+    on:back={handleBack}
+    on:setNavMode={(e) =>
+      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
+    on:jumpTo={handleJumpTo}
   />
 {:else if currentView === "random"}
   <CategoryView
@@ -469,94 +485,6 @@
     cardMode={selectedCardMode}
     cardNavMode={settings.cardNavMode}
     preloadCount={24}
-    on:back={handleBack}
-    on:setNavMode={(e) =>
-      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
-    on:jumpTo={handleJumpTo}
-  />
-{:else if currentView === "animals"}
-  <CategoryView
-    items={animalsItems}
-    categoryKey="animals"
-    cardMode={selectedCardMode}
-    cardNavMode={settings.cardNavMode}
-    on:back={handleBack}
-    on:setNavMode={(e) =>
-      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
-    on:jumpTo={handleJumpTo}
-  />
-{:else if currentView === "work"}
-  <CategoryView
-    items={jobsItems}
-    categoryKey="work"
-    cardMode={selectedCardMode}
-    cardNavMode={settings.cardNavMode}
-    on:back={handleBack}
-    on:setNavMode={(e) =>
-      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
-    on:jumpTo={handleJumpTo}
-  />
-{:else if currentView === "music"}
-  <CategoryView
-    items={musicItems}
-    categoryKey="music"
-    cardMode={selectedCardMode}
-    cardNavMode={settings.cardNavMode}
-    on:back={handleBack}
-    on:setNavMode={(e) =>
-      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
-    on:jumpTo={handleJumpTo}
-  />
-{:else if currentView === "people"}
-  <CategoryView
-    items={peopleItems}
-    categoryKey="people"
-    cardMode={selectedCardMode}
-    cardNavMode={settings.cardNavMode}
-    on:back={handleBack}
-    on:setNavMode={(e) =>
-      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
-    on:jumpTo={handleJumpTo}
-  />
-{:else if currentView === "vehicles"}
-  <CategoryView
-    items={vehiclesItems}
-    categoryKey="vehicles"
-    cardMode={selectedCardMode}
-    cardNavMode={settings.cardNavMode}
-    on:back={handleBack}
-    on:setNavMode={(e) =>
-      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
-    on:jumpTo={handleJumpTo}
-  />
-{:else if currentView === "games"}
-  <CategoryView
-    items={gamesItems}
-    categoryKey="games"
-    cardMode={selectedCardMode}
-    cardNavMode={settings.cardNavMode}
-    on:back={handleBack}
-    on:setNavMode={(e) =>
-      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
-    on:jumpTo={handleJumpTo}
-  />
-{:else if currentView === "sentences"}
-  <CategoryView
-    items={sentencesItems}
-    categoryKey="sentences"
-    cardMode={selectedCardMode}
-    cardNavMode={settings.cardNavMode}
-    on:back={handleBack}
-    on:setNavMode={(e) =>
-      settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
-    on:jumpTo={handleJumpTo}
-  />
-{:else if currentView === "instruments"}
-  <CategoryView
-    items={instrumentsItems}
-    categoryKey="instruments"
-    cardMode={selectedCardMode}
-    cardNavMode={settings.cardNavMode}
     on:back={handleBack}
     on:setNavMode={(e) =>
       settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
@@ -631,6 +559,19 @@
 {/if}
 
 <style>
+  .route-loading {
+    width: 100vw;
+    height: 100dvh;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 1.4rem;
+    font-weight: bold;
+  }
+
   :global([data-tooltip]) {
     position: relative;
   }

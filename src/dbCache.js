@@ -127,4 +127,6 @@ export const dbCacheKeys = {
   allCards: (userId) => `all-cards:${userId}`,
   // v2: ignora le vecchie liste vuote salvate anche in caso di errore di rete.
   selector: (userId) => `selector:v2:${userId}`,
+  publicCategories: () => "public-categories:v1",
+  publicCards: () => "public-cards:v1",
 };

@@ -3,90 +3,55 @@
     import { getSupabase } from "./supabaseClient.js";
     import { user } from "./authStore.js";
     import { cachedQuery, dbCacheKeys } from "./dbCache.js";
-    import { animals } from "./animals.js";
-    import { jobs } from "./jobs.js";
-    import { music } from "./music.js";
-    import { people } from "./people.js";
-    import { vehicles } from "./vehicles.js";
-    import { games } from "./games.js";
-    import { sentences } from "./sentences.js";
-    import {
-        getAnimalName,
-        getJobName,
-        getMusicName,
-        getPersonName,
-        getVehicleName,
-        getGameName,
-        getSentenceName,
-    } from "./i18n.js";
+    import { loadPublicContent, publicContent } from "./publicContentStore.js";
 
-    export let currentCategory = "animals";
+    export let currentCategory = null;
     export let currentItemId = null;
     export let slot = null; // 'A', 'B', or null
 
     const dispatch = createEventDispatcher();
-    const locale = "it";
 
-    const categories = [
-        {
-            id: "animals",
-            label: "Animali",
-            emoji: "🦁",
-            items: animals,
-            getName: (item) => getAnimalName(item.key, locale),
-        },
-        {
-            id: "work",
-            label: "Lavoro",
-            emoji: "🔨",
-            items: jobs,
-            getName: (item) => getJobName(item.key, locale),
-        },
-        {
-            id: "music",
-            label: "Musica",
-            emoji: "🎵",
-            items: music,
-            getName: (item) => getMusicName(item.key, locale),
-        },
-        {
-            id: "people",
-            label: "Persone",
-            emoji: "👨‍👩‍👧‍👦",
-            items: people,
-            getName: (item) => getPersonName(item.key, locale),
-        },
-        {
-            id: "vehicles",
-            label: "Mezzi di trasporto",
-            emoji: "🚗",
-            items: vehicles,
-            getName: (item) => getVehicleName(item.key, locale),
-        },
-        {
-            id: "games",
-            label: "Giochi",
-            emoji: "🎮",
-            items: games,
-            getName: (item) => getGameName(item.key, locale),
-        },
-        {
-            id: "sentences",
-            label: "Frasi",
-            emoji: "💬",
-            items: sentences,
-            getName: (item) => getSentenceName(item.key, locale),
-        },
-    ];
-
-    let extendedCategories = [...categories];
+    let publicCategories = [];
+    let userCategories = [];
+    let extendedCategories = [];
 
     // Current category is expanded by default, others collapsed
     let expandedId = currentCategory;
     let activeUserId;
     let latestLoadId = 0;
 
+    function toSelectorCategory(category) {
+        return {
+            id: category.id,
+            label: category.name,
+            emoji: category.emoji || "✨",
+            items: category.items.map((item) => ({
+                id: item.id,
+                image: item.image,
+                sound: item.sound,
+                name: item.name,
+            })),
+            getName: (item) => item.name,
+        };
+    }
+
+    publicContent.subscribe((state) => {
+        publicCategories = state.categories.map(toSelectorCategory);
+    });
+
+    $: extendedCategories = [...publicCategories, ...userCategories];
+    $: if (
+        currentCategory
+        && extendedCategories.some((category) => category.id === currentCategory)
+    ) {
+        expandedId = currentCategory;
+    }
+
     onMount(() => {
+        loadPublicContent().catch((error) => {
+            console.error("Public content fetch error:", error);
+        });
+
         // La sessione può essere ripristinata dopo l'apertura del selettore.
         // Restiamo iscritti per caricare le categorie appena l'utente è pronto.
         return user.subscribe((currentUser) => {
@@ -95,8 +60,7 @@
 
             activeUserId = userId;
             const loadId = ++latestLoadId;
-            extendedCategories = [...categories];
-            expandedId = currentCategory;
+            userCategories = [];
 
             if (userId) loadCustomCategories(userId, loadId);
         });
@@ -136,14 +100,10 @@
             if (loadId !== latestLoadId || activeUserId !== userId) return;
 
             // JSON non conserva le funzioni: va ricreata anche per i dati in cache.
-            const customCats = (remoteCategories || []).map((cat) => ({
+            userCategories = (remoteCategories || []).map((cat) => ({
                 ...cat,
                 getName: (item) => item.name,
             }));
-            extendedCategories = [...categories, ...customCats];
-            if (customCats.find((c) => c.id === currentCategory)) {
-                expandedId = currentCategory;
-            }
         } catch (error) {
             if (loadId !== latestLoadId || activeUserId !== userId) return;
             console.error("Card selector categories fetch error:", error);

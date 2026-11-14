@@ -58,9 +58,53 @@ export function buildSession({ expiresInSeconds = 3600 } = {}) {
   };
 }
 
+/** Public card content shipped by scripts/seed-public-card-content.js. */
+export const PUBLIC_CATEGORIES = [
+  { id: '11111111-1111-4111-8111-111111111111', slug: 'animals', name: 'Animali', emoji: '🦁', sort_order: 0 },
+  { id: '22222222-2222-4222-8222-222222222222', slug: 'work', name: 'Lavoro', emoji: '🔨', sort_order: 1 },
+  { id: '33333333-3333-4333-8333-333333333333', slug: 'people', name: 'Persone', emoji: '👨‍👩‍👧‍👦', sort_order: 2 },
+  { id: '44444444-4444-4444-8444-444444444444', slug: 'vehicles', name: 'Mezzi di trasporto', emoji: '🚗', sort_order: 3 },
+  { id: '55555555-5555-4555-8555-555555555555', slug: 'games', name: 'Giochi', emoji: '🎮', sort_order: 4 },
+  { id: '66666666-6666-4666-8666-666666666666', slug: 'music', name: 'Musica', emoji: '🎵', sort_order: 5 },
+  { id: '77777777-7777-4777-8777-777777777777', slug: 'sentences', name: 'Frasi', emoji: '💬', sort_order: 6 },
+  { id: '88888888-8888-4888-8888-888888888888', slug: 'instruments', name: 'Strumenti', emoji: '🎺', sort_order: 7 },
+].map((category, index) => ({
+  ...category,
+  created_at: new Date(Date.UTC(2026, 0, 1, index)).toISOString(),
+}));
+
+export const PUBLIC_CARDS = PUBLIC_CATEGORIES.map((category, index) => ({
+  id: `99999999-9999-4999-8999-99999999999${index}`,
+  category_id: category.id,
+  name: `Card ${category.name}`,
+  image_url: '/animals-nocircle/lion.svg',
+  sound_url: 'synth:pianoforte',
+  created_at: new Date(Date.UTC(2026, 0, 1, index)).toISOString(),
+}));
+
+/** Intercept the public categories/cards queries made on every app start. */
+export async function mockPublicContent(page) {
+  await page.route('**/rest/v1/soundpad_public_categories**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(PUBLIC_CATEGORIES),
+    })
+  );
+  await page.route('**/rest/v1/soundpad_public_cards**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(PUBLIC_CARDS),
+    })
+  );
+}
+
 /** Intercept every Supabase call the app may make while signing in. */
 export async function mockSupabaseAuth(page) {
   const session = buildSession();
+
+  await mockPublicContent(page);
 
   await page.route('**/auth/v1/token**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session) })

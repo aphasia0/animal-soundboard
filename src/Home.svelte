@@ -1,17 +1,9 @@
 <script>
     import { onMount } from "svelte";
     import { createEventDispatcher } from "svelte";
-    import { user, signOut } from "./authStore.js";
+    import { user } from "./authStore.js";
     import { getSupabase } from "./supabaseClient.js";
     import { cachedQuery, dbCacheKeys, invalidateDbCache } from "./dbCache.js";
-    import { animals } from "./animals.js";
-    import { jobs } from "./jobs.js";
-    import { music } from "./music.js";
-    import { people } from "./people.js";
-    import { vehicles } from "./vehicles.js";
-    import { games } from "./games.js";
-    import { sentences } from "./sentences.js";
-    import { instruments } from "./instruments.js";
 
     import AddCategoryModal from "./AddCategoryModal.svelte";
     import { isModalOpen } from "./modalStore.js";
@@ -23,8 +15,12 @@
     let currentUser;
     let userCategories = [];
 
+    // Categorie pubbliche caricate da Supabase (soundpad_public_categories).
+    export let publicCategories = [];
+    export let loadingPublic = false;
+    export let publicError = null;
     // Categoria speciale "Casuale": anteprima di 4 card pescate dal mazzo
-    // unico passato da App (native + card Supabase dell'utente).
+    // unico passato da App (pubbliche + card Supabase dell'utente).
     export let randomItems = [];
     let randomPreview = [];
     let previewPoolLength = -1;
@@ -48,65 +44,6 @@
     let catToEdit = null;
     let showDeleteCatConfirm = false;
     let catToDelete = null;
-
-    const categories = [
-        {
-            id: "animals",
-            name: "Animali",
-            emoji: "🦁",
-            enabled: true,
-            description: `${animals.length} animali`,
-        },
-        {
-            id: "work",
-            name: "Lavoro",
-            emoji: "🔨",
-            enabled: true,
-            description: `${jobs.length} lavori`,
-        },
-        {
-            id: "people",
-            name: "Persone",
-            emoji: "👨‍👩‍👧‍👦",
-            enabled: true,
-            description: `${people.length} persone`,
-        },
-        {
-            id: "vehicles",
-            name: "Mezzi di trasporto",
-            emoji: "🚗",
-            enabled: true,
-            description: `${vehicles.length} mezzi`,
-        },
-        {
-            id: "games",
-            name: "Giochi",
-            emoji: "🎮",
-            enabled: true,
-            description: `${games.length} giochi`,
-        },
-        {
-            id: "music",
-            name: "Musica",
-            emoji: "🎵",
-            enabled: true,
-            description: `${music.length} canzoni`,
-        },
-        {
-            id: "sentences",
-            name: "Frasi",
-            emoji: "💬",
-            enabled: true,
-            description: `${sentences.length} frasi`,
-        },
-        {
-            id: "instruments",
-            name: "Strumenti",
-            emoji: "🎺",
-            enabled: true,
-            description: `${instruments.length} strumenti`,
-        },
-    ];
 
     user.subscribe((v) => {
         currentUser = v;
@@ -175,10 +112,8 @@
     }
 
     function selectCategory(category) {
-        if (category.enabled) {
-            triggerVibration(60);
-            dispatch("select", { categoryId: category.id });
-        }
+        triggerVibration(60);
+        dispatch("select", { categoryId: category.id });
     }
 
     function selectRandom() {
@@ -259,18 +194,26 @@
                 </div>
             </button>
 
-            {#each categories as category, i}
+            {#if publicError}
+                <div class="categories-status error">
+                    Impossibile caricare le categorie.
+                </div>
+            {:else if loadingPublic && publicCategories.length === 0}
+                <div class="categories-status">Caricamento categorie…</div>
+            {/if}
+
+            {#each publicCategories as category, i}
                 <button
-                    class="card"
-                    class:enabled={category.enabled}
-                    class:disabled={!category.enabled}
+                    class="card enabled"
                     on:click={() => selectCategory(category)}
-                    disabled={!category.enabled}
                     in:fly={{ y: 50, duration: 600, delay: (i + 1) * 80 }}
                 >
                     <div class="emoji">{category.emoji}</div>
                     <div class="name">{category.name}</div>
-                    <div class="description">{category.description}</div>
+                    <div class="description">
+                        {category.cardCount}
+                        {category.cardCount === 1 ? "card" : "card"}
+                    </div>
                 </button>
             {/each}
 
@@ -280,7 +223,7 @@
                 <div
                     class="card enabled user-card"
                     on:click={() => selectUserCategory(ucat)}
-                    in:fly={{ y: 50, duration: 600, delay: (categories.length + i + 1) * 80 }}
+                    in:fly={{ y: 50, duration: 600, delay: (publicCategories.length + i + 1) * 80 }}
                 >
                     <!-- Edit & Delete overlay icons -->
                     <div class="cat-actions">
@@ -344,10 +287,10 @@
                 </div>
             {/each}
 
-            <button 
-                class="card add-card" 
+            <button
+                class="card add-card"
                 on:click={handleAddCategory}
-                in:fly={{ y: 50, duration: 600, delay: (categories.length + userCategories.length + 1) * 80 }}
+                in:fly={{ y: 50, duration: 600, delay: (publicCategories.length + userCategories.length + 1) * 80 }}
             >
                 <div class="emoji">＋</div>
                 <div class="name">Aggiungi</div>
@@ -488,6 +431,17 @@
         padding-bottom: 2rem;
     }
 
+    .categories-status {
+        grid-column: 1 / -1;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-align: center;
+    }
+    .categories-status.error {
+        color: #ffe4e6;
+    }
+
     .card {
         background: white;
         border: none;
@@ -514,11 +468,6 @@
     }
     .card.enabled:active {
         transform: translateY(-5px) scale(1.02);
-    }
-    .card.disabled {
-        background: linear-gradient(135deg, #e0e0e0 0%, #d0d0d0 100%);
-        cursor: not-allowed;
-        opacity: 0.6;
     }
 
     .user-card {
@@ -683,10 +632,6 @@
         margin-bottom: 1rem;
         line-height: 1;
     }
-    .card.disabled .emoji {
-        filter: grayscale(100%);
-        opacity: 0.5;
-    }
     .name {
         font-size: 2rem;
         font-weight: bold;
@@ -694,17 +639,10 @@
         margin-bottom: 0.5rem;
         text-align: center;
     }
-    .card.disabled .name {
-        color: #999;
-    }
     .description {
         font-size: 1.2rem;
         color: #666;
         text-align: center;
-    }
-    .card.disabled .description {
-        color: #aaa;
-        font-style: italic;
     }
 
     @media (max-width: 768px) {

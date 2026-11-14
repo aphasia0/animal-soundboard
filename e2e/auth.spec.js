@@ -1,5 +1,14 @@
 import { test, expect } from '@playwright/test';
-import { mockSupabaseAuth, getAuthCookie, TEST_USER } from './helpers/supabase-mock.js';
+import {
+  mockPublicContent,
+  mockSupabaseAuth,
+  getAuthCookie,
+  TEST_USER,
+} from './helpers/supabase-mock.js';
+
+test.beforeEach(async ({ page }) => {
+  await mockPublicContent(page);
+});
 
 test.describe('auth modal', () => {
   test('opens, switches to registration and closes', async ({ page }) => {
@@ -35,8 +44,8 @@ test.describe('login session', () => {
       id: '123e4567-e89b-12d3-a456-426614174000',
       name: 'Card dopo refresh',
       category_id: categoryId,
-      image_url: '/animals/lion.svg',
-      sound_url: '/sounds/lion.wav',
+      image_url: '/animals-nocircle/lion.svg',
+      sound_url: 'synth:pianoforte',
       created_at: new Date().toISOString(),
     };
 

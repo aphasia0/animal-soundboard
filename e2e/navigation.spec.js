@@ -1,4 +1,13 @@
 import { test, expect } from '@playwright/test';
+import {
+  mockPublicContent,
+  PUBLIC_CARDS,
+  PUBLIC_CATEGORIES,
+} from './helpers/supabase-mock.js';
+
+test.beforeEach(async ({ page }) => {
+  await mockPublicContent(page);
+});
 
 test.describe('mode select', () => {
   test('renders all four modes', async ({ page }) => {
@@ -100,5 +109,84 @@ test.describe('deep links and history', () => {
     await page.goBack();
     await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByRole('heading', { name: 'Sound Pad' })).toBeVisible();
+  });
+
+  test('public category with slug opens from /:slug', async ({ page }) => {
+    const verbCategory = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      slug: 'verbi',
+      name: 'Verbi',
+      emoji: '🏃',
+      sort_order: 8,
+      created_at: new Date().toISOString(),
+    };
+    const verbCard = {
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      category_id: verbCategory.id,
+      name: 'Correre',
+      image_url: '/animals-nocircle/lion.svg',
+      sound_url: 'synth:pianoforte',
+      created_at: new Date().toISOString(),
+    };
+    await page.route('**/rest/v1/soundpad_public_categories**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([...PUBLIC_CATEGORIES, verbCategory]),
+      })
+    );
+    await page.route('**/rest/v1/soundpad_public_cards**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([...PUBLIC_CARDS, verbCard]),
+      })
+    );
+
+    await page.goto('/verbi');
+    await expect(page.locator('.item-name')).toHaveText('Correre');
+    await page.reload();
+    await expect(page.locator('.item-name')).toHaveText('Correre');
+  });
+
+  test('public category without slug opens from /category/:id', async ({ page }) => {
+    const verbCategory = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      slug: null,
+      name: 'Verbi',
+      emoji: '🏃',
+      sort_order: 8,
+      created_at: new Date().toISOString(),
+    };
+    const verbCard = {
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      category_id: verbCategory.id,
+      name: 'Correre',
+      image_url: '/animals-nocircle/lion.svg',
+      sound_url: 'synth:pianoforte',
+      created_at: new Date().toISOString(),
+    };
+    await page.route('**/rest/v1/soundpad_public_categories**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([...PUBLIC_CATEGORIES, verbCategory]),
+      })
+    );
+    await page.route('**/rest/v1/soundpad_public_cards**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([...PUBLIC_CARDS, verbCard]),
+      })
+    );
+
+    // Le categorie migrate da user_categories non hanno slug: l'UUID deve
+    // comunque risolvere la categoria pubblica e non quella personale.
+    await page.goto(`/category/${verbCategory.id}`);
+    await expect(page.locator('.item-name')).toHaveText('Correre');
+
+    await page.locator('.palette-btn[title="Indietro"]').click();
+    await expect(page.getByRole('button', { name: /Verbi/ })).toBeVisible();
   });
 });
