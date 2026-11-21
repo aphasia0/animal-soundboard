@@ -5,6 +5,10 @@ scripts/node_modules/
 # Categoria corrente salvata da create-category
 /.soundpad-cat.env
 
+# Worker container
+/worker/.env
+/.worker-data/
+
 .DS_Store
 
 # Playwright

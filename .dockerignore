@@ -1,0 +1,14 @@
+.git
+.gitignore
+.DS_Store
+node_modules
+scripts/node_modules
+public
+e2e
+docs
+videos
+test-results
+playwright-report
+.soundpad-cat.env
+**/.env
+worker/.env

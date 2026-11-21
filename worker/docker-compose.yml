@@ -1,0 +1,42 @@
+services:
+  worker:
+    image: ${WORKER_IMAGE:-soundpad-worker:local}
+    build:
+      context: ..
+      dockerfile: worker/Dockerfile
+    container_name: soundpad-worker
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    ports:
+      # Su una rete fidata va bene così. Se il Pi è raggiungibile da Internet,
+      # metti davanti un reverse proxy con HTTPS o limita la porta con il firewall.
+      - "${WORKER_PORT:-8787}:8787"
+    volumes:
+      - worker-data:/data
+      - worker-public:/app/public
+      - worker-tmp:/tmp
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  worker-data:
+  worker-public:
+  worker-tmp:

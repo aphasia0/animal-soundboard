@@ -86,6 +86,7 @@ const PUBLIC_DIR = join(__dirname, "..", "public");
 // ── Config Supabase ───────────────────────────────────────────────────────────
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://lkvurqiojgabbztkfjeo.supabase.co";
 const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_ANON_KEY ||
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrdnVycWlvamdhYmJ6dGtmamVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NzQyOTYsImV4cCI6MjA3NDU1MDI5Nn0.kI3-oq8WDi7WknWrPLejeLetmnXo0G-TMmKT3cDY-OE";
 const EMAIL = process.env.SUPABASE_EMAIL;
 const PASSWORD = process.env.SUPABASE_PASSWORD;
