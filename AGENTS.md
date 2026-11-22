@@ -32,6 +32,7 @@ npx playwright test -g "slug"
 - Config: `cp worker/.env.example worker/.env`, poi `cd worker && docker compose up -d --build`. `worker/.env` è gitignored.
 - Per Raspberry Pi 3 compila da x86 con `docker buildx build --platform linux/arm/v7 -t soundpad-worker:armv7 -f worker/Dockerfile .` (usa `linux/arm64` con `uname -m` = `aarch64`). Il comando `video` non è esposto: è troppo pesante per il Pi.
 - Il worker usa ancora il login utente e scrive in `user_cards`; per `soundpad_public_cards` / `public/<card_uuid>/...` serve una variante con `service_role`.
+- `POST /upload` accetta `category` come UUID o nome: il CLI risolve il nome prima di generare audio/immagine, con errore esplicito se è ambiguo. Vale anche per `upload --mode remote` da shell.
 
 ## Test e2e
 

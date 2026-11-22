@@ -10,6 +10,9 @@
  *   GET  /health   stato del worker (pubblico, senza segreti)
  *   POST /upload   crea una card via prompt AI
  *
+ * In modalità remote `category` accetta l'UUID oppure il nome della categoria:
+ * il CLI risolve il nome sull'account connesso.
+ *
  * Variabili d'ambiente principali:
  *   WORKER_TOKEN       obbligatorio, Bearer token per /upload
  *   SUPABASE_*         usate da upload-card.js per il login e l'upload
@@ -45,8 +48,6 @@ const MAX_QUEUE = Number(process.env.MAX_QUEUE || 2);
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 256 * 1024);
 const MAX_LOG_CHARS = Number(process.env.MAX_LOG_CHARS || 20_000);
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UUID_IN_TEXT_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const JOB_ID_RE = /^[A-Za-z0-9._-]{1,100}$/;
@@ -143,13 +144,6 @@ function parseInput(body) {
   const mode = (readString(body.mode, "mode", { max: 10 }) || "remote").toLowerCase();
   if (!["remote", "local"].includes(mode)) {
     throw new HttpError(400, 'mode deve essere "remote" o "local".');
-  }
-  if (mode === "remote" && !UUID_RE.test(category)) {
-    throw new HttpError(
-      400,
-      "In modalità remote category deve essere l'UUID della categoria, non il nome.",
-      { category },
-    );
   }
   if (mode === "local" && !LOCAL_CATEGORY_RE.test(category)) {
     throw new HttpError(

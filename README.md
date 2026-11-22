@@ -283,10 +283,10 @@ node scripts/upload-card.js upload --mode local \
   --input video.mp4 --start 12 --end 27 \
   --name "Nome Card" --category animals
 
-# Rilascio su Supabase (--category = UUID di user_categories)
+# Rilascio su Supabase (--category = UUID o nome di user_categories)
 SUPABASE_PASSWORD=*** node scripts/upload-card.js upload --mode remote \
   --input video.mp4 --start 12 --end 27 \
-  --name "Nome Card" --category <uuid_categoria>
+  --name "Nome Card" --category <uuid_o_nome_categoria>
 
 # Puoi sempre passare un'immagine già pronta
 node scripts/upload-card.js upload --mode local \

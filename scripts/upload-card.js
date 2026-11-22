@@ -28,21 +28,21 @@
  *   # Genera immagine (Nano Banana / Gemini 3.1 Flash Image) e audio voce TTS:
  *   GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \
  *     --prompt "Un leone ruggente nella savana" \
- *     --category <uuid_categoria>
+ *     --category <uuid_categoria|nome>
  *
  *   # Modalità musica (Lyria 3.5: brano completo, convertito in WebM).
  *   # Senza --seconds conserva tutta la durata generata da Lyria.
  *   GEMINI_API_KEY=*** node upload-card.js upload \
  *     --prompt "Una sinfonia allegra di chitarra" \
  *     --audio-mode music \
- *     --category <uuid_categoria>
+ *     --category <uuid_categoria|nome>
  *
  *   # Modalità effetti (ElevenLabs Sound Effects, immagine sempre Nano Banana).
  *   GEMINI_API_KEY=*** ELEVENLABS_API_KEY=*** node upload-card.js upload \
  *     --prompt "Un tuono lontano durante un temporale" \
  *     --audio-mode effects \
  *     --seconds 8 \
- *     --category <uuid_categoria>
+ *     --category <uuid_categoria|nome>
  *
  * ── Prerequisiti ─────────────────────────────────────────────────────────────
  *   - Node.js 20+
@@ -1082,9 +1082,9 @@ async function runLocal({ audioWebm, imagePath, name, key, category }) {
 }
 
 // ── Modalità remota ───────────────────────────────────────────────────────────
-async function runRemote({ audioWebm, imagePath, name, category }) {
+async function runRemote({ audioWebm, imagePath, name, category }, connection = null) {
   const ts = Date.now();
-  const { token, userId } = await connect();
+  const { token, userId } = connection || (await connect());
 
   // Audio WebM
   const audioPath = `${userId}/${ts}.webm`;
@@ -1128,7 +1128,7 @@ async function runRemote({ audioWebm, imagePath, name, category }) {
 // ── Comando: upload ───────────────────────────────────────────────────────────
 async function runUpload(flags) {
   const args = parseUploadArgs(flags);
-  const { mode, prompt, fullPrompt, additionalInfo, audioMode, musicModel, seconds, geminiApiKey, ttsApiKey, elevenLabsApiKey, input, start, end, image, name, key, category } = args;
+  let { mode, prompt, fullPrompt, additionalInfo, audioMode, musicModel, seconds, geminiApiKey, ttsApiKey, elevenLabsApiKey, input, start, end, image, name, key, category } = args;
 
   logParams("📋 Parametri upload:", {
     mode,
@@ -1152,6 +1152,18 @@ async function runUpload(flags) {
 
   let tempWebmAudio = null;
   let tempImage = null;
+
+  // Risolve il nome prima di generare audio/immagine: un refuso non deve
+  // consumare chiamate AI. La connessione viene riusata da runRemote.
+  let remoteConnection = null;
+  if (mode === "remote" && category && !UUID_RE.test(category)) {
+    remoteConnection = await connect();
+    const categories = await fetchCategories(remoteConnection.token);
+    const resolved = resolveCategory(categories, category, "--category");
+    category = resolved.id;
+    args.category = category;
+    console.log(`Categoria "${resolved.name}" → ${resolved.id}`);
+  }
 
   try {
     if (prompt || fullPrompt) {
@@ -1224,7 +1236,7 @@ async function runUpload(flags) {
             "  # DA PROMPT (Google AI):\n" +
             "  GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \\\n" +
             '    --prompt "Un leone ruggente nella savana" \\\n' +
-            "    --category <uuid_categoria> [--audio-mode voice|music|effects] [--name \"Leone\"]\n\n" +
+            "    --category <uuid_categoria|nome> [--audio-mode voice|music|effects] [--name \"Leone\"]\n\n" +
             "  # DA VIDEO/FILE:\n" +
             "  node upload-card.js upload --mode local|remote \\\n" +
             "    --input video.mp4 --start 0 --end 15 \\\n" +
@@ -1256,7 +1268,7 @@ async function runUpload(flags) {
     if (mode === "local") {
       await runLocal(args);
     } else if (mode === "remote") {
-      await runRemote(args);
+      await runRemote(args, remoteConnection);
     } else {
       throw new Error(`--mode non valido: ${mode} (usa "local" o "remote")`);
     }
@@ -2160,7 +2172,7 @@ ESEMPI PER OGNI COMANDO
 
   # Elenca le card di una specifica categoria (per nome o UUID)
   SUPABASE_PASSWORD=*** node upload-card.js cards --category "Animali"
-  SUPABASE_PASSWORD=*** node upload-card.js cards --category <uuid_categoria> --json
+  SUPABASE_PASSWORD=*** node upload-card.js cards --category <uuid_categoria|nome> --json
 
 4. Comando: move-card (Sposta card tra categorie)
   # Sposta una card per nome (confronto senza maiuscole/accenti)
@@ -2205,7 +2217,7 @@ ESEMPI PER OGNI COMANDO
   GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \\
     --prompt "Leone" \\
     --additional-info "un maestoso leone che ruggisce nella savana al tramonto" \\
-    --category <uuid_categoria>
+    --category <uuid_categoria|nome>
 
   # B) Da PROMPT in modalità MUSICA con Google Lyria 3.5:
   GEMINI_API_KEY=*** node upload-card.js upload \\
@@ -2213,7 +2225,7 @@ ESEMPI PER OGNI COMANDO
     --additional-info "una chitarra acustica di legno con note musicali colorate" \\
     --audio-mode music \\
     --seconds 20 \\
-    --category <uuid_categoria>
+    --category <uuid_categoria|nome>
 
   # C) Da PROMPT in modalità EFFETTI con ElevenLabs Sound Effects:
   GEMINI_API_KEY=*** ELEVENLABS_API_KEY=*** node upload-card.js upload \\
@@ -2221,7 +2233,7 @@ ESEMPI PER OGNI COMANDO
     --additional-info "pioggia intensa, atmosfera cinematografica" \\
     --audio-mode effects \\
     --seconds 8 \\
-    --category <uuid_categoria>
+    --category <uuid_categoria|nome>
 
   # D) Da PROMPT in LOCALE (salva gli asset in public/):
   GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \\
@@ -2232,12 +2244,12 @@ ESEMPI PER OGNI COMANDO
   # E) Da FILE VIDEO (estrae traccia audio WebM + fotogramma centrale):
   SUPABASE_PASSWORD=*** node upload-card.js upload \\
     --input video.mp4 --start 10 --end 25 \\
-    --name "Leone" --category <uuid_categoria>
+    --name "Leone" --category <uuid_categoria|nome>
 
   # F) Da FILE AUDIO e IMMAGINE già pronti:
   SUPABASE_PASSWORD=*** node upload-card.js upload \\
     --input audio.m4a --start 0 --end 15 \\
-    --image foto.jpg --name "Leone" --category <uuid_categoria>
+    --image foto.jpg --name "Leone" --category <uuid_categoria|nome>
 
 7. Comando: video (Video locale da una categoria Supabase)
   # Scarica tutte le card della categoria, genera il TTS del nome e monta
@@ -2252,7 +2264,7 @@ ESEMPI PER OGNI COMANDO
 
   # Ordine audio inverso (prima il suono della card, poi il nome) e pausa di 0.4s
   SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
-    --category <uuid_categoria> --audio-order sound-first --gap 0.4
+    --category <uuid_categoria|nome> --audio-order sound-first --gap 0.4
 
   # Formato verticale, voce fissa e nome file personalizzato
   SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\

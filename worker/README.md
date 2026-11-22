@@ -122,7 +122,7 @@ Body:
 {
   "prompt": "Un leone ruggente nella savana",
   "name": "Leone",
-  "category": "00000000-0000-0000-0000-000000000000",
+  "category": "Animali",
   "audioMode": "voice",
   "seconds": 5,
   "additionalInfo": "stile illustrazione per bambini",
@@ -135,7 +135,7 @@ Campi:
 | Campo | Obbligatorio | Note |
 |---|---|---|
 | `prompt` | sì | Testo per immagine e audio |
-| `category` | sì | UUID della categoria in modalità `remote`; nome cartella in `local` |
+| `category` | sì | UUID o nome della categoria in modalità `remote`; nome cartella in `local` |
 | `name` | no | Default: primi 35 caratteri del prompt |
 | `mode` | no | `remote` (default) o `local` |
 | `audioMode` | no | `voice` (default), `music`, `effects` |
