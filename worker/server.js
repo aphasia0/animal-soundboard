@@ -134,7 +134,8 @@ function parseInput(body) {
 
   const prompt = readString(body.prompt, "prompt", { required: true, max: 2000 });
   const category = readString(body.category, "category", { required: true, max: 200 });
-  const name = readString(body.name, "name", { max: 200 }) || prompt.slice(0, 35).trim();
+  const explicitName = readString(body.name, "name", { max: 200 });
+  const name = explicitName || prompt.slice(0, 35).trim();
   const additionalInfo = readString(
     body.additionalInfo ?? body.additional_info,
     "additionalInfo",
@@ -183,6 +184,9 @@ function parseInput(body) {
   return {
     prompt,
     name,
+    // --name viene passato al CLI solo se il chiamante lo ha indicato: senza
+    // nome il CLI lo ricava dal prompt e pronuncia il prompt intero.
+    nameProvided: Boolean(explicitName),
     category,
     additionalInfo,
     mode,
@@ -199,11 +203,11 @@ function buildArgs(input) {
   const args = [
     "upload",
     `--prompt=${input.prompt}`,
-    `--name=${input.name}`,
     `--category=${input.category}`,
     `--mode=${input.mode}`,
     `--audio-mode=${input.audioMode}`,
   ];
+  if (input.nameProvided) args.push(`--name=${input.name}`);
   if (input.additionalInfo) args.push(`--additional-info=${input.additionalInfo}`);
   if (input.seconds !== null) args.push(`--seconds=${String(input.seconds)}`);
   return args;

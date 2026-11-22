@@ -33,6 +33,8 @@
   let selectedCategory = null;
   let selectedPublicCategory = null;
   let selectedUserCategory = null;
+  // Card da selezionare dopo un jump tra categorie dal selettore.
+  let pendingItemId = null;
   let routeCategoryId = null;
   let publicCategories = [];
   let publicContentLoaded = false;
@@ -274,6 +276,7 @@
   }
 
   function handlePopState() {
+    pendingItemId = null;
     syncViewWithUrl();
   }
 
@@ -283,6 +286,9 @@
   }
 
   function navigate(view, payload = null) {
+    if (view !== "publicCategory" && view !== "userCategory") {
+      pendingItemId = null;
+    }
     let path = "/";
     if (view === "home") path = "/home";
     else if (view === "random") path = "/random";
@@ -340,6 +346,7 @@
 
   function handleCategorySelect(event) {
     const { categoryId } = event.detail;
+    pendingItemId = null;
     if (categoryId === "random") {
       selectedCategory = "random";
       selectedPublicCategory = null;
@@ -355,6 +362,7 @@
 
   function handleUserCategorySelect(event) {
     const { category } = event.detail;
+    pendingItemId = null;
     navigate("userCategory", category);
   }
 
@@ -369,7 +377,7 @@
   }
 
   function handleJumpTo(e) {
-    const { category } = e.detail;
+    const { category, item } = e.detail;
     if (category === "random") {
       selectedCategory = "random";
       clearCategoryRoute();
@@ -382,12 +390,17 @@
       navigate("stories");
       return;
     }
+    pendingItemId = item?.id ?? null;
     const publicCategory = findPublicCategory(publicCategories, category);
     if (publicCategory) {
       navigate("publicCategory", publicCategory);
       return;
     }
     navigate("userCategory", { id: category });
+  }
+
+  function handleInitialItemApplied(e) {
+    if (pendingItemId === e.detail.id) pendingItemId = null;
   }
 
   function handleShowAuth() {
@@ -473,10 +486,12 @@
     loading={publicContentLoading}
     cardMode={selectedCardMode}
     cardNavMode={settings.cardNavMode}
+    initialItemId={pendingItemId}
     on:back={handleBack}
     on:setNavMode={(e) =>
       settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
+    on:initialItemApplied={handleInitialItemApplied}
   />
 {:else if currentView === "random"}
   <CategoryView
@@ -517,6 +532,7 @@
     loading={loadingUserCards}
     cardMode={selectedCardMode}
     cardNavMode={settings.cardNavMode}
+    initialItemId={pendingItemId}
     on:back={handleBack}
     on:addCard={handleAddCard}
     on:deleteCard={handleDeleteCard}
@@ -524,6 +540,7 @@
     on:setNavMode={(e) =>
       settingsStore.updateSettings({ cardNavMode: e.detail }, currentUser?.id)}
     on:jumpTo={handleJumpTo}
+    on:initialItemApplied={handleInitialItemApplied}
   />
 {/if}
 

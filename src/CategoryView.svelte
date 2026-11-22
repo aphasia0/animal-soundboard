@@ -31,6 +31,10 @@
     // 0 = precarica tutto; con un numero precarica solo le prime N card
     // (usato dal mazzo "Casuale", che può contenere centinaia di card).
     export let preloadCount = 0;
+    // Card da selezionare quando si arriva da un'altra categoria tramite il
+    // selettore. Si usa l'id, non l'indice, perché le due liste possono avere
+    // ordini diversi (o la cache del selettore può essere più vecchia).
+    export let initialItemId = null;
 
     const dispatch = createEventDispatcher();
     // maxTime in ms; null = infinite (no auto-advance)
@@ -116,6 +120,23 @@
         return idx;
     }
 
+    // Il selettore può avere un ordine diverso da `items` (soprattutto per le
+    // card utente, dove `user_cards(*)` non garantisce l'ordine). L'id è
+    // l'unico riferimento stabile: l'indice può essere sfasato di +1/-1.
+    function indexForItem(item, fallbackIndex) {
+        if (item?.id != null) {
+            // Se l'id non esiste più, NON ricadere sull'indice: la cache del
+            // selettore può essere più vecchia e l'indice indicherebbe un'altra
+            // card (il classico errore +1/-1).
+            return items.findIndex((entry) => entry.id === item.id);
+        }
+        return Number.isInteger(fallbackIndex) &&
+            fallbackIndex >= 0 &&
+            fallbackIndex < items.length
+            ? fallbackIndex
+            : -1;
+    }
+
     $: if (items && items.length > 0) {
         const toPreload =
             preloadCount > 0 ? items.slice(0, preloadCount) : items;
@@ -153,6 +174,30 @@
         }
 
         indicesInitialized = true;
+    }
+
+    // Selezione richiesta da un'altra categoria: si applica quando `items` è
+    // disponibile (le card utente arrivano in modo asincrono).
+    let appliedInitialItemId = null;
+    $: if (!initialItemId) {
+        appliedInitialItemId = null;
+    } else if (items.length > 0 && initialItemId !== appliedInitialItemId) {
+        const targetIndex = items.findIndex((entry) => entry.id === initialItemId);
+        // Se non c'è ancora, aspettiamo: per le card utente `items` può
+        // contenere la categoria precedente finché la fetch non termina.
+        if (targetIndex !== -1) {
+            appliedInitialItemId = initialItemId;
+            indicesInitialized = true;
+            currentIndex = targetIndex;
+            indexA = targetIndex;
+            overrideA = null;
+            overrideB = null;
+            indexB =
+                items.length > 1
+                    ? (targetIndex + 1) % items.length
+                    : targetIndex;
+            dispatch("initialItemApplied", { id: initialItemId });
+        }
     }
 
     // Initialize as soon as items are available (they can load asynchronously
@@ -318,7 +363,12 @@
 
         if (selectorSlot === "A") {
             if (isCurrentCat) {
-                indexA = index;
+                const targetIndex = indexForItem(item, index);
+                if (targetIndex === -1) {
+                    selectorSlot = null;
+                    return;
+                }
+                indexA = targetIndex;
                 overrideA = null;
                 // Avoid clash
                 if (indexB === indexA && items.length > 1) {
@@ -337,7 +387,12 @@
             return;
         } else if (selectorSlot === "B") {
             if (isCurrentCat) {
-                indexB = index;
+                const targetIndex = indexForItem(item, index);
+                if (targetIndex === -1) {
+                    selectorSlot = null;
+                    return;
+                }
+                indexB = targetIndex;
                 overrideB = null;
                 // Avoid clash
                 if (indexA === indexB && items.length > 1) {
@@ -351,9 +406,15 @@
             progressB = 0;
             accumulatedTimeB = 0;
         } else {
-            // Single card mode
+            // Single card mode: l'indice del selettore può non corrispondere
+            // a quello di `items`; cerca sempre per id.
             if (isCurrentCat) {
-                currentIndex = index;
+                const targetIndex = indexForItem(item, index);
+                if (targetIndex === -1) {
+                    selectorSlot = null;
+                    return;
+                }
+                currentIndex = targetIndex;
                 indexA = 0; // Ensure we are not in a dual-mode state
                 progress = 0;
                 accumulatedTime = 0;
@@ -507,6 +568,7 @@
         progress = 0;
         accumulatedTime = 0;
         audioOffset = 0;
+        if (items.length === 0) return;
         if (cardNavMode === "locked") {
             // locked: stay on same card, just reset progress
             return;
@@ -638,6 +700,7 @@
         progressA = 0;
         accumulatedTimeA = 0;
         audioOffsetA = 0;
+        if (items.length === 0) return;
         if (cardNavMode === "locked") return; // stay on same card
         overrideA = null;
         if (cardNavMode === "shuffle") indexA = getRandomIndex(indexA);
@@ -757,6 +820,7 @@
         progressB = 0;
         accumulatedTimeB = 0;
         audioOffsetB = 0;
+        if (items.length === 0) return;
         if (cardNavMode === "locked") return; // stay on same card
         overrideB = null;
         if (cardNavMode === "shuffle") indexB = getRandomIndex(indexB);
@@ -764,9 +828,38 @@
     }
 
     // Keyboard support
+    function isEditableTarget(target) {
+        const tag = target?.tagName;
+        return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    }
+
+    function isInteractiveTarget(target) {
+        return Boolean(
+            target?.closest?.("button, a, input, textarea, select"),
+        );
+    }
+
+    function isCardTarget(target) {
+        return Boolean(target?.closest?.(".item-button"));
+    }
+
     async function handleKeyDown(e) {
         if (e.repeat) return;
-        if (playbackMode === "select_and_listen" && cardMode === 1 && !$isModalOpen) {
+        if (isEditableTarget(e.target)) return;
+
+        // Con un overlay aperto (selettore, colori, playback, FAB, modali)
+        // i tasti globali non devono muovere la card sotto.
+        const hasOverlay =
+            $isModalOpen ||
+            showColorPicker ||
+            showPlaybackPicker ||
+            showSelector ||
+            showFab ||
+            showDeleteConfirm ||
+            showEditModal;
+        if (hasOverlay) return;
+
+        if (playbackMode === "select_and_listen" && cardMode === 1) {
             if (e.code === "KeyA") {
                 if (isPressed) {
                     isPressed = false;
@@ -780,14 +873,17 @@
                 return;
             }
             if (e.code === "Space") {
-                const tag = e.target.tagName;
-                if (tag !== 'INPUT' && tag !== 'BUTTON' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
-                    e.preventDefault();
-                    await handlePressStart();
+                // Lascia attivare i controlli della toolbar; la card stessa è
+                // un <button class="item-button"> e deve invece rispondere.
+                if (isInteractiveTarget(e.target) && !isCardTarget(e.target)) {
                     return;
                 }
+                e.preventDefault();
+                await handlePressStart();
+                return;
             }
         }
+
         if (cardMode === 1) {
             if (e.code === "Space" || e.code === "KeyA")
                 await handlePressStart();
@@ -1517,9 +1613,9 @@
             }}
             currentCategory={categoryId || categoryKey}
             currentItemId={selectorSlot === "A"
-                ? items[indexA]?.id
+                ? (indexA === -1 ? overrideA?.id : items[indexA]?.id)
                 : selectorSlot === "B"
-                  ? items[indexB]?.id
+                  ? (indexB === -1 ? overrideB?.id : items[indexB]?.id)
                   : items[currentIndex]?.id}
             slot={selectorSlot}
         />

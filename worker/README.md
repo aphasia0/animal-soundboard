@@ -134,13 +134,13 @@ Campi:
 
 | Campo | Obbligatorio | Note |
 |---|---|---|
-| `prompt` | sì | Testo per immagine e audio |
+| `prompt` | sì | Descrizione visiva per l'immagine; in `voice` è anche il testo pronunciato, ma solo se `name` non è indicato |
 | `category` | sì | UUID o nome della categoria in modalità `remote`; nome cartella in `local` |
-| `name` | no | Default: primi 35 caratteri del prompt |
+| `name` | no | Etichetta della card e testo pronunciato in `voice`; default: primi 35 caratteri del prompt |
 | `mode` | no | `remote` (default) o `local` |
 | `audioMode` | no | `voice` (default), `music`, `effects` |
 | `seconds` | no | Durata/taglio audio |
-| `additionalInfo` | no | Dettagli extra per l'immagine |
+| `additionalInfo` | no | Dettagli extra **solo visivi**: viene accodato al prompt per l'immagine (e per musica/effetti), mai pronunciato |
 | `requestId` | no | Chiave di idempotenza; default UUID generato |
 | `retry` | no | `true` per rieseguire un job fallito con lo stesso `requestId` |
 
@@ -207,6 +207,43 @@ Nel nodo **HTTP Request**:
 
 Per l'agente: dagli un tool HTTP con schema JSON, **non** un tool che esegue
 comandi shell. Il worker valida i campi e non accetta comandi arbitrari.
+
+### Workflow MCP pronti
+
+Due JSON importabili in n8n (**Workflows → Import from File**):
+
+| File | Ruolo |
+| --- | --- |
+| `worker/n8n-worker-upload.json` | validazione deterministica dei parametri + chiamata `POST /upload` |
+| `worker/n8n-mcp-workflow.json` | MCP Server Trigger con i tool `crea_card` e `worker_health` |
+
+`crea_card` è un **Call n8n Workflow Tool** che punta al primo workflow: il
+server MCP resta sottile, mentre normalizzazione, default e messaggi di errore
+vivono in un solo punto. Regole applicate prima di toccare il worker:
+
+- `prompt` obbligatorio, max 2000 caratteri
+- `category` obbligatorio (nome o UUID), max 200 caratteri
+- `name` facoltativo, max 200; se manca usa le prime 35 lettere del prompt
+- `audioMode` in `voice` / `music` / `effects` (default `voice`, case-insensitive)
+- `seconds` facoltativo, numero tra 1 e 600
+- `additionalInfo` facoltativo, max 1000 caratteri
+- `requestId` facoltativo, `[A-Za-z0-9._-]{1,100}`
+
+Un input non valido non fa fallire l'esecuzione: il workflow risponde
+`{ ok: false, error, dettagli }`, così il client MCP riceve un messaggio
+utilizzabile invece di un errore di nodo. Anche un worker irraggiungibile
+(`onError: continueRegularOutput`) torna come `{ ok: false, error }`.
+
+Dopo l'import del workflow MCP va selezionato il sottoworkflow nel nodo
+`crea_card` (campo **Workflow**): il JSON contiene il segnaposto
+`SOSTITUISCI_CON_ID_DEL_WORKFLOW_UPLOAD`, perché gli ID cambiano a ogni
+istanza. I due file contengono `WORKER_TOKEN` in chiaro e sono in `.gitignore`.
+
+In un **Call n8n Workflow Tool** ogni `$fromAI('campo', 'descrizione', 'tipo')`
+senza quarto argomento diventa **obbligatorio** nello schema del tool: se il
+modello omette il campo la chiamata fallisce con `did not match schema` prima
+di arrivare al sottoworkflow. Per i campi facoltativi serve sempre un default,
+anche vuoto: `$fromAI('name', '...', 'string', '')`.
 
 ## Variabili principali
 

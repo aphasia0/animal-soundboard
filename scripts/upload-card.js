@@ -274,6 +274,9 @@ function parseUploadArgs(flags) {
     end: parseFloat(flagValue(flags, "end")),
     image: flagValue(flags, "image"),
     name,
+    // Testo pronunciato in modalità voice: il nome esplicito della card se c'è,
+    // altrimenti il prompt (comportamento storico per le chiamate senza --name).
+    speechText: rawName || prompt || name,
     key,
     category: selectedCategoryRef(flags),
   };
@@ -1128,7 +1131,7 @@ async function runRemote({ audioWebm, imagePath, name, category }, connection = 
 // ── Comando: upload ───────────────────────────────────────────────────────────
 async function runUpload(flags) {
   const args = parseUploadArgs(flags);
-  let { mode, prompt, fullPrompt, additionalInfo, audioMode, musicModel, seconds, geminiApiKey, ttsApiKey, elevenLabsApiKey, input, start, end, image, name, key, category } = args;
+  let { mode, prompt, fullPrompt, additionalInfo, audioMode, musicModel, seconds, geminiApiKey, ttsApiKey, elevenLabsApiKey, input, start, end, image, name, key, category, speechText } = args;
 
   logParams("📋 Parametri upload:", {
     mode,
@@ -1214,7 +1217,7 @@ async function runUpload(flags) {
           );
         }
         console.log("Modalità Audio: VOICE (generazione Google Text-to-Speech)...");
-        tempWebmAudio = await generateGoogleTTS(prompt || name, ttsApiKey);
+        tempWebmAudio = await generateGoogleTTS(speechText, ttsApiKey);
       }
 
       // 2. Image generation

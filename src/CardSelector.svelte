@@ -35,10 +35,8 @@
         };
     }
 
-    publicContent.subscribe((state) => {
-        publicCategories = state.categories.map(toSelectorCategory);
-    });
-
+    // Auto-sottoscrizione Svelte: si pulisce da sola alla distruzione.
+    $: publicCategories = $publicContent.categories.map(toSelectorCategory);
     $: extendedCategories = [...publicCategories, ...userCategories];
     $: if (
         currentCategory
@@ -86,12 +84,26 @@
                         id: cat.id,
                         label: cat.name,
                         emoji: cat.emoji || "✨",
-                        items: (cat.user_cards || []).map((card) => ({
-                            id: card.id,
-                            image: card.image_url,
-                            sound: card.sound_url,
-                            name: card.name,
-                        })),
+                        // L'ordine delle risorse annidate non è garantito da
+                        // PostgREST; allinealo a quello di CategoryView
+                        // (created_at crescente). La selezione comunque usa
+                        // l'id, non l'indice.
+                        items: (cat.user_cards || [])
+                            .slice()
+                            .sort((a, b) => {
+                                const ta = Date.parse(a.created_at || "");
+                                const tb = Date.parse(b.created_at || "");
+                                return (
+                                    (Number.isNaN(ta) ? 0 : ta) -
+                                    (Number.isNaN(tb) ? 0 : tb)
+                                );
+                            })
+                            .map((card) => ({
+                                id: card.id,
+                                image: card.image_url,
+                                sound: card.sound_url,
+                                name: card.name,
+                            })),
                     }));
                 },
             );

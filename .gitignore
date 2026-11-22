@@ -9,6 +9,10 @@ scripts/node_modules/
 /worker/.env
 /.worker-data/
 
+# Workflow n8n con il WORKER_TOKEN in chiaro
+/worker/n8n-mcp-workflow.json
+/worker/n8n-worker-upload.json
+
 .DS_Store
 
 # Playwright

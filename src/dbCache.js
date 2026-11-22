@@ -125,8 +125,9 @@ export const dbCacheKeys = {
   cards: (userId, categoryId) => `cards:${userId}:${categoryId}`,
   // Tutte le card dell'utente, usate dalla categoria "Casuale".
   allCards: (userId) => `all-cards:${userId}`,
-  // v2: ignora le vecchie liste vuote salvate anche in caso di errore di rete.
-  selector: (userId) => `selector:v2:${userId}`,
+  // v3: card annidate ordinate per created_at (e selezione per id).
+  // v2 ignorava le vecchie liste vuote salvate anche in caso di errore di rete.
+  selector: (userId) => `selector:v3:${userId}`,
   publicCategories: () => "public-categories:v1",
   publicCards: () => "public-cards:v1",
 };

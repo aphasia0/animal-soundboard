@@ -33,6 +33,7 @@ npx playwright test -g "slug"
 - Per Raspberry Pi 3 compila da x86 con `docker buildx build --platform linux/arm/v7 -t soundpad-worker:armv7 -f worker/Dockerfile .` (usa `linux/arm64` con `uname -m` = `aarch64`). Il comando `video` non è esposto: è troppo pesante per il Pi.
 - Il worker usa ancora il login utente e scrive in `user_cards`; per `soundpad_public_cards` / `public/<card_uuid>/...` serve una variante con `service_role`.
 - `POST /upload` accetta `category` come UUID o nome: il CLI risolve il nome prima di generare audio/immagine, con errore esplicito se è ambiguo. Vale anche per `upload --mode remote` da shell.
+- n8n: `worker/n8n-worker-upload.json` (Execute Workflow Trigger → Code di validazione → IF → HTTP) e `worker/n8n-mcp-workflow.json` (MCP Server Trigger + Call n8n Workflow Tool verso il primo). La validazione sta solo nel sottoworkflow e non lancia eccezioni: restituisce `{ok:false, error, dettagli}`. Entrambi contengono `WORKER_TOKEN` in chiaro e sono gitignored; il nodo `crea_card` richiede di selezionare il sottoworkflow dopo l'import.
 
 ## Test e2e
 
