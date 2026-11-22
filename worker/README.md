@@ -139,7 +139,7 @@ Campi:
 | `name` | no | Etichetta della card e testo pronunciato in `voice`; default: primi 35 caratteri del prompt |
 | `mode` | no | `remote` (default) o `local` |
 | `audioMode` | no | `voice` (default), `music`, `effects` |
-| `seconds` | no | Durata/taglio audio |
+| `seconds` | no | Solo `music` (1-600) ed `effects` (0,5-30); in `voice` la durata dipende dal testo e il campo viene ignorato |
 | `additionalInfo` | no | Dettagli extra **solo visivi**: viene accodato al prompt per l'immagine (e per musica/effetti), mai pronunciato |
 | `requestId` | no | Chiave di idempotenza; default UUID generato |
 | `retry` | no | `true` per rieseguire un job fallito con lo stesso `requestId` |
@@ -219,14 +219,26 @@ Due JSON importabili in n8n (**Workflows → Import from File**):
 
 `crea_card` è un **Call n8n Workflow Tool** che punta al primo workflow: il
 server MCP resta sottile, mentre normalizzazione, default e messaggi di errore
-vivono in un solo punto. Regole applicate prima di toccare il worker:
+vivono in un solo punto. Contratto dei campi:
 
-- `prompt` obbligatorio, max 2000 caratteri
+| Campo | Ruolo |
+| --- | --- |
+| `name` | etichetta della card **e** parola pronunciata in `voice` |
+| `prompt` | descrizione visiva per l'immagine; se manca si usa `name` |
+| `category` | nome o UUID della categoria |
+| `audioMode` | `voice` / `music` / `effects` |
+| `seconds` | durata audio |
+
+Regole applicate prima di toccare il worker:
+
+- `name` obbligatorio, max 200 caratteri
 - `category` obbligatorio (nome o UUID), max 200 caratteri
-- `name` facoltativo, max 200; se manca usa le prime 35 lettere del prompt
+- `prompt` facoltativo, max 2000 caratteri; default `name`
 - `audioMode` in `voice` / `music` / `effects` (default `voice`, case-insensitive)
-- `seconds` facoltativo, numero tra 1 e 600
-- `additionalInfo` facoltativo, max 1000 caratteri
+- `seconds` solo per `music` (1-600) ed `effects` (0,5-30); in `voice` viene
+  scartato, perché la durata dipende dal testo
+- `additionalInfo` non è esposto dal tool MCP, per non confondere il modello;
+  il worker e il CLI continuano ad accettarlo come dettaglio visivo
 - `requestId` facoltativo, `[A-Za-z0-9._-]{1,100}`
 
 Un input non valido non fa fallire l'esecuzione: il workflow risponde

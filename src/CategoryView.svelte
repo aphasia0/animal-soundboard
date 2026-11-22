@@ -355,8 +355,58 @@
         showColorPicker = false;
     }
 
+    function stopSpeech() {
+        if (typeof window !== "undefined" && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+    }
+
+    function stopPrimaryPlayback() {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        isPressed = false;
+        progress = 0;
+        accumulatedTime = 0;
+        audioOffset = 0;
+        stopAudio();
+    }
+
+    function stopSlotPlayback(slot) {
+        if (slot === "A") {
+            if (animationFrameIdA) {
+                cancelAnimationFrame(animationFrameIdA);
+                animationFrameIdA = null;
+            }
+            isPressedA = false;
+            progressA = 0;
+            accumulatedTimeA = 0;
+            audioOffsetA = 0;
+            stopAudioChannel("cardA");
+            return;
+        }
+        if (animationFrameIdB) {
+            cancelAnimationFrame(animationFrameIdB);
+            animationFrameIdB = null;
+        }
+        isPressedB = false;
+        progressB = 0;
+        accumulatedTimeB = 0;
+        audioOffsetB = 0;
+        stopAudioChannel("cardB");
+    }
+
     function handleCardSelect(e) {
         const { category, item, index } = e.detail;
+        // Cambiare card deve fermare subito il suono (e il TTS) della card
+        // precedente, altrimenti il vecchio updateProgress può continuare e
+        // far avanzare o riprodurre la card sbagliata.
+        if (selectorSlot === "A") stopSlotPlayback("A");
+        else if (selectorSlot === "B") stopSlotPlayback("B");
+        else stopPrimaryPlayback();
+        stopSpeech();
+
         closeAllOverlays();
 
         const isCurrentCat = category === (categoryId || categoryKey);
@@ -470,6 +520,10 @@
             accumulatedTime = 0;
             resumeAudioContext();
             await playAudio(currentItem.sound, 0);
+            if (!isPressed) {
+                stopAudio();
+                return;
+            }
             activeMaxTime = resolveMaxTime(currentItem.sound);
             updateProgress();
             return;
@@ -489,6 +543,10 @@
             accumulatedTime = 0;
             resumeAudioContext();
             await playAudio(currentItem.sound, 0, false); // No loop
+            if (!isPressed) {
+                stopAudio();
+                return;
+            }
             activeMaxTime = resolveMaxTime(currentItem.sound);
             updateProgress();
             return;
@@ -502,6 +560,10 @@
             currentItem.sound,
             playbackMode === "resume" ? audioOffset : 0,
         );
+        if (!isPressed) {
+            stopAudio();
+            return;
+        }
         activeMaxTime = resolveMaxTime(currentItem.sound);
         updateProgress();
     }
@@ -609,6 +671,10 @@
             accumulatedTimeA = 0;
             resumeAudioContext();
             await playAudioChannel(currentItem.sound, "cardA", 0);
+            if (!isPressedA) {
+                stopAudioChannel("cardA");
+                return;
+            }
             activeMaxTimeA = resolveMaxTime(currentItem.sound);
             updateProgressA();
             return;
@@ -628,6 +694,10 @@
             accumulatedTimeA = 0;
             resumeAudioContext();
             await playAudioChannel(currentItem.sound, "cardA", 0, false);
+            if (!isPressedA) {
+                stopAudioChannel("cardA");
+                return;
+            }
             activeMaxTimeA = resolveMaxTime(currentItem.sound);
             updateProgressA();
             return;
@@ -642,6 +712,10 @@
             "cardA",
             playbackMode === "resume" ? audioOffsetA : 0,
         );
+        if (!isPressedA) {
+            stopAudioChannel("cardA");
+            return;
+        }
         activeMaxTimeA = resolveMaxTime(currentItem.sound);
         updateProgressA();
     }
@@ -729,6 +803,10 @@
             accumulatedTimeB = 0;
             resumeAudioContext();
             await playAudioChannel(currentItem.sound, "cardB", 0);
+            if (!isPressedB) {
+                stopAudioChannel("cardB");
+                return;
+            }
             activeMaxTimeB = resolveMaxTime(currentItem.sound);
             updateProgressB();
             return;
@@ -748,6 +826,10 @@
             accumulatedTimeB = 0;
             resumeAudioContext();
             await playAudioChannel(currentItem.sound, "cardB", 0, false);
+            if (!isPressedB) {
+                stopAudioChannel("cardB");
+                return;
+            }
             activeMaxTimeB = resolveMaxTime(currentItem.sound);
             updateProgressB();
             return;
@@ -762,6 +844,10 @@
             "cardB",
             playbackMode === "resume" ? audioOffsetB : 0,
         );
+        if (!isPressedB) {
+            stopAudioChannel("cardB");
+            return;
+        }
         activeMaxTimeB = resolveMaxTime(currentItem.sound);
         updateProgressB();
     }

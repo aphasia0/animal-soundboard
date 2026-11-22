@@ -294,6 +294,13 @@ node scripts/upload-card.js upload --mode local \
   --image frame.jpg --name "Nome Card" --category animals
 ```
 
+Quando la card nasce da un prompt, il testo pronunciato in modalità `voice` è
+`--name` se presente, altrimenti il prompt: `--prompt` serve anche a descrivere
+l'immagine, quindi per una card "Banana" conviene
+`--name "Banana" --prompt "una banana su un tavolo di cucina"`.
+`--additional-info` è solo un dettaglio visivo accodato al prompt: non viene
+mai pronunciato.
+
 `--input` accetta audio (m4a, mp3, wav…) e video (mp4, webm, mov…): dai video
 viene usata solo la traccia audio. `--image` è facoltativo: se manca e `--input`
 è un video, lo script estrae con ffmpeg il fotogramma a metà clip
