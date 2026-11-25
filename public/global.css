@@ -23,6 +23,6 @@ body {
   /* Disables double-tap zoom without preventing native document scrolling. */
   touch-action: manipulation;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #f8fafc;
+  background: #667eea;
   color: #0f172a;
 }
