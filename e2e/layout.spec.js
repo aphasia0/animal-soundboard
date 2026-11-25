@@ -15,6 +15,36 @@ test('the installed iOS shell extends the app color behind the status bar', asyn
   expect(bodyBackground).toBe('rgb(102, 126, 234)');
 });
 
+test('exposes a valid standalone web app manifest', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.webmanifest');
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/icons/apple-touch-icon-180.png');
+
+  const response = await page.request.get('/manifest.webmanifest');
+  expect(response.ok()).toBeTruthy();
+
+  const manifest = await response.json();
+  expect(manifest.name).toBe('Sound Pad - Comunicazione CAA');
+  expect(manifest.short_name).toBe('Sound Pad');
+  expect(manifest.start_url).toBe('/');
+  expect(manifest.scope).toBe('/');
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.theme_color).toBe('#667eea');
+  expect(manifest.background_color).toBe('#667eea');
+
+  const icons = manifest.icons.map((icon) => icon.sizes);
+  expect(icons).toContain('192x192');
+  expect(icons).toContain('512x512');
+  expect(manifest.icons.some((icon) => icon.purpose === 'maskable')).toBeTruthy();
+
+  for (const icon of manifest.icons) {
+    const iconResponse = await page.request.get(icon.src);
+    expect(iconResponse.ok(), `${icon.src} should be reachable`).toBeTruthy();
+    expect(iconResponse.headers()['content-type']).toContain('image/png');
+  }
+});
+
 test('the app shell allows native document scrolling', async ({ page }) => {
   await page.goto('/');
 

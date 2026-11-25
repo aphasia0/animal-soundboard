@@ -42,6 +42,7 @@ npx playwright test -g "slug"
 - `ModeSelect`, `Home`, `GamesView`, `StorySelect` e `InfoView` usano `min-height: 100dvh` e lo scroll del documento. `CategoryView`, `StoryView`, `TouchTheBox` e `MuoviLaScatola` restano viste immersive a viewport bloccato.
 - I fallback viewport vanno nell'ordine `100vh` poi `100dvh`. Le safe area si applicano una sola volta al contenitore radice; controlli fixed e modali devono aggiungere gli inset necessari senza duplicarli nei figli.
 - In modalità “Aggiungi a Home” iOS usa `apple-mobile-web-app-status-bar-style=black-translucent` e il fondo `#667eea` di `html`/`body`: non ripristinare la status bar `default` o un body chiaro, altrimenti ricompare la fascia bianca superiore.
+- `public/manifest.webmanifest` e le icone in `public/icons/` rendono l’app installabile e standalone (`display: standalone`). Le icone PNG sono generate dal sorgente `public/icons/icon.svg`; l’`apple-touch-icon` deve restare PNG perché iOS ignora gli SVG. Non c’è un service worker: l’app dipende da Supabase e non deve servire bundle in cache potenzialmente obsoleti.
 
 ## Test e2e
 
