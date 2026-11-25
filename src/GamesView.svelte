@@ -75,29 +75,27 @@
 
 <style>
   main {
-    width: 100vw;
-    height: 100dvh;
-    height: 100vh;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
   .games-view {
     width: 100%;
-    min-height: 100%;
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
     padding: 2rem;
-    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
     box-sizing: border-box;
+    position: relative;
   }
 
   .top-nav {
@@ -223,7 +221,6 @@
 
     .games-view {
       padding: 1rem;
-      padding-bottom: calc(1rem + env(safe-area-inset-bottom));
     }
   }
 </style>

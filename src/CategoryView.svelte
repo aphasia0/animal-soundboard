@@ -1745,9 +1745,9 @@
 
 <style>
     main {
-        width: 100vw;
-        height: 100dvh;
+        width: 100%;
         height: 100vh;
+        height: 100dvh;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         display: flex;
         flex-direction: column;
@@ -1758,11 +1758,10 @@
     .soundboard {
         width: 100%;
         height: 100%;
-        height: 100dvh;
+        min-height: 0;
         display: flex;
         flex-direction: column;
         padding: 1rem;
-        padding-bottom: calc(1rem + env(safe-area-inset-bottom));
         box-sizing: border-box;
         position: relative;
     }
@@ -2276,15 +2275,15 @@
     }
     .overlay {
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
+        inset: 0;
         background: rgba(0, 0, 0, 0.5);
         display: flex;
         align-items: center;
         justify-content: center;
         z-index: 1000;
+        padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
     .modal {
         background: white;
@@ -2292,6 +2291,8 @@
         border-radius: 24px;
         width: 90%;
         max-width: 400px;
+        max-height: 100%;
+        overflow-y: auto;
         box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
         display: flex;
         flex-direction: column;
@@ -2334,11 +2335,11 @@
         }
         .item-name {
             font-size: 2rem;
-            bottom: calc(1rem + env(safe-area-inset-bottom));
+            bottom: 1rem;
         }
         .dual-container .item-name {
             font-size: 1.5rem;
-            bottom: calc(0.5rem + env(safe-area-inset-bottom));
+            bottom: 0.5rem;
         }
         .progress-container,
         .dual-container {

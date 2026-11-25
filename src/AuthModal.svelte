@@ -98,6 +98,9 @@
         justify-content: center;
         z-index: 1000;
         backdrop-filter: blur(4px);
+        padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
 
     .modal {
@@ -106,6 +109,8 @@
         padding: 2.5rem;
         width: 90%;
         max-width: 400px;
+        max-height: 100%;
+        overflow-y: auto;
         position: relative;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     }

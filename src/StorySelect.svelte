@@ -72,36 +72,33 @@
 
 <style>
     main {
-        width: 100vw;
-        height: 100dvh;
-        height: 100vh;
+        width: 100%;
+        min-height: 100vh;
+        min-height: 100dvh;
         display: flex;
+        flex-direction: column;
         align-items: flex-start;
         justify-content: flex-start;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior: contain;
         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
 
     .story-select {
         width: 100%;
-        min-height: 100%;
+        flex: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: flex-start;
         padding: 2rem;
-        padding-bottom: calc(2rem + env(safe-area-inset-bottom));
         box-sizing: border-box;
     }
 
     .top-bar {
         position: fixed;
-        top: 1rem;
-        left: 1rem;
-        right: 1rem;
+        top: calc(1rem + env(safe-area-inset-top));
+        left: calc(1rem + env(safe-area-inset-left));
+        right: calc(1rem + env(safe-area-inset-right));
         display: flex;
         justify-content: space-between;
         z-index: 100;
@@ -244,7 +241,6 @@
     @media (max-width: 480px) {
         .story-select {
             padding: 1rem;
-            padding-bottom: calc(1rem + env(safe-area-inset-bottom));
         }
         .title {
             font-size: 1.5rem;

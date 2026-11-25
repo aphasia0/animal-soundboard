@@ -352,37 +352,28 @@
 {/if}
 
 <style>
-    :global(body) {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        font-family: "Arial", sans-serif;
-    }
-
     main {
-        width: 100vw;
-        height: 100dvh;
-        height: 100vh;
+        width: 100%;
+        min-height: 100vh;
+        min-height: 100dvh;
         display: flex;
+        flex-direction: column;
         align-items: flex-start;
         justify-content: flex-start;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior: contain;
         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
 
     .home {
         width: 100%;
-        min-height: 100%;
+        flex: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: flex-start;
         padding: 2rem;
-        padding-bottom: calc(2rem + env(safe-area-inset-bottom));
         box-sizing: border-box;
+        position: relative;
     }
 
     /* ── Top Navigation ─────────────────────────────── */
@@ -564,6 +555,9 @@
         justify-content: center;
         z-index: 2000;
         backdrop-filter: blur(3px);
+        padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
     .cat-modal {
         background: white;
@@ -571,6 +565,8 @@
         padding: 2rem;
         width: 90%;
         max-width: 360px;
+        max-height: 100%;
+        overflow-y: auto;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
         text-align: center;
     }
@@ -647,7 +643,7 @@
 
     @media (max-width: 768px) {
         .home {
-            padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+            padding-bottom: 2rem;
         }
         .title {
             font-size: 2rem;
@@ -692,7 +688,6 @@
     @media (max-width: 480px) {
         .home {
             padding: 1rem;
-            padding-bottom: calc(1rem + env(safe-area-inset-bottom));
         }
         .title {
             font-size: 1.5rem;

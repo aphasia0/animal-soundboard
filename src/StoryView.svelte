@@ -187,7 +187,8 @@
 
 <style>
     main {
-        width: 100vw;
+        width: 100%;
+        height: 100vh;
         height: 100dvh;
         background: #000;
         overflow: hidden;
@@ -222,8 +223,8 @@
 
     .back-button {
         position: absolute;
-        top: 1rem;
-        left: 1rem;
+        top: calc(1rem + env(safe-area-inset-top));
+        left: calc(1rem + env(safe-area-inset-left));
         background: rgba(255, 255, 255, 0.9);
         border: none;
         border-radius: 15px;

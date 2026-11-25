@@ -209,6 +209,8 @@
     .panel {
         width: 380px;
         max-width: 90vw;
+        height: 100%;
+        min-height: 0;
         background: white;
         display: flex;
         flex-direction: column;
@@ -229,7 +231,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 1.25rem 1.5rem;
+        padding: calc(1.25rem + env(safe-area-inset-top)) calc(1.5rem + env(safe-area-inset-right)) 1.25rem calc(1.5rem + env(safe-area-inset-left));
         border-bottom: 1px solid #eee;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         flex-shrink: 0;
@@ -263,8 +265,10 @@
 
     .categories-list {
         flex: 1;
+        min-height: 0;
         overflow-y: auto;
-        padding: 0.5rem 0;
+        overscroll-behavior: contain;
+        padding: 0.5rem env(safe-area-inset-right) calc(0.5rem + env(safe-area-inset-bottom)) env(safe-area-inset-left);
     }
 
     .category-section {
@@ -377,8 +381,8 @@
 
     @media (max-width: 480px) {
         .panel {
-            width: 100vw;
-            max-width: 100vw;
+            width: 100%;
+            max-width: 100%;
         }
         .item-row {
             padding-left: 1.5rem;

@@ -36,6 +36,12 @@ npx playwright test -g "slug"
 - n8n: `worker/n8n-worker-upload.json` (Execute Workflow Trigger → Code di validazione → IF → HTTP) e `worker/n8n-mcp-workflow.json` (MCP Server Trigger + Call n8n Workflow Tool verso il primo). La validazione sta solo nel sottoworkflow e non lancia eccezioni: restituisce `{ok:false, error, dettagli}`. Contratto esposto dal tool: `name` obbligatorio (etichetta + parola pronunciata), `prompt` facoltativo (fallback `name`), `additionalInfo` non esposto. In un `Call n8n Workflow Tool` un `$fromAI(...)` senza quarto argomento è required: i campi facoltativi hanno bisogno di un default, anche `''`. Entrambi i JSON contengono `WORKER_TOKEN` in chiaro e sono gitignored; il nodo `crea_card` richiede di selezionare il sottoworkflow dopo l'import.
 - In modalità `voice` il TTS pronuncia `--name` se presente, altrimenti il prompt; il worker passa `--name` al CLI solo se il chiamante lo ha indicato.
 
+## Layout e Safari iOS
+
+- `public/global.css` lascia `html` e `body` nel flusso naturale del documento: non reintrodurre `position: fixed`, `overflow: hidden` o `overscroll-behavior: none` globali. Safari nasconde/anima le proprie barre solo con lo scroll nativo del documento, non con un `<main>` a altezza fissa e `overflow-y: auto`.
+- `ModeSelect`, `Home`, `GamesView`, `StorySelect` e `InfoView` usano `min-height: 100dvh` e lo scroll del documento. `CategoryView`, `StoryView`, `TouchTheBox` e `MuoviLaScatola` restano viste immersive a viewport bloccato.
+- I fallback viewport vanno nell'ordine `100vh` poi `100dvh`. Le safe area si applicano una sola volta al contenitore radice; controlli fixed e modali devono aggiungere gli inset necessari senza duplicarli nei figli.
+
 ## Test e2e
 
 - Playwright avvia da solo `npm run build` e sirv sulla porta 4173 (`E2E_PORT` per cambiarla). In locale `reuseExistingServer` riusa un server già attivo: se è rimasto un sirv di un build vecchio, i test girano sul bundle vecchio — chiudilo o cambia porta.

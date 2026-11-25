@@ -115,20 +115,16 @@
 
 <style>
     main {
-        width: 100vw;
-        height: 100vh;
-        height: 100dvh;
+        width: 100%;
+        min-height: 100vh;
+        min-height: 100dvh;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: flex-start;
         color: white;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-        padding: 1rem;
-        padding-top: env(safe-area-inset-top, 1rem);
-        padding-bottom: env(safe-area-inset-bottom, 1rem);
+        padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));
         box-sizing: border-box;
     }
 
@@ -143,8 +139,8 @@
 
     .top-nav {
         position: fixed;
-        top: 1rem;
-        left: 1rem;
+        top: calc(1rem + env(safe-area-inset-top));
+        left: calc(1rem + env(safe-area-inset-left));
         z-index: 100;
     }
 

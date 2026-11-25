@@ -577,9 +577,9 @@
 
 <style>
   .route-loading {
-    width: 100vw;
-    height: 100dvh;
-    height: 100vh;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
