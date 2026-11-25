@@ -45,6 +45,36 @@ test('exposes a valid standalone web app manifest', async ({ page }) => {
   }
 });
 
+test('Info and Accedi do not cover the mode title on a short screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 640 });
+  await page.goto('/');
+
+  const title = page.getByRole('heading', { name: 'Scegli Modalità' });
+  const authArea = page.locator('.auth-area');
+  await expect(title).toBeVisible();
+  await expect(authArea).toBeVisible();
+
+  const titleBox = await title.boundingBox();
+  const authBox = await authArea.boundingBox();
+  expect(titleBox).not.toBeNull();
+  expect(authBox).not.toBeNull();
+  expect(titleBox.y).toBeGreaterThanOrEqual(authBox.y + authBox.height);
+});
+
+test('card mode uses a 5% UI scale without overflowing horizontally', async ({ page }) => {
+  await page.goto('/animals');
+  await expect(page.locator('.item-button.primary')).toBeVisible();
+
+  const layout = await page.evaluate(() => ({
+    zoom: getComputedStyle(document.querySelector('.soundboard')).zoom,
+    scrollWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }));
+
+  expect(Number.parseFloat(layout.zoom)).toBeCloseTo(1.05, 2);
+  expect(layout.scrollWidth).toBeLessThanOrEqual(layout.viewportWidth);
+});
+
 test('the app shell allows native document scrolling', async ({ page }) => {
   await page.goto('/');
 

@@ -176,6 +176,7 @@
         color: white;
         font-size: 3rem;
         font-weight: bold;
+        margin-top: auto;
         margin-bottom: 3rem;
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
         text-align: center;
@@ -183,12 +184,13 @@
 
     /* ── Auth Button ─────────────────────────────── */
     .auth-area {
-        position: absolute;
-        top: 1rem;
-        right: 1rem;
+        position: relative;
+        align-self: flex-end;
         z-index: 100;
         display: flex;
+        flex-shrink: 0;
         gap: 0.5rem;
+        margin-bottom: 1rem;
     }
     .auth-btn {
         background: rgba(255, 255, 255, 0.9);
@@ -255,6 +257,7 @@
         gap: 2rem;
         max-width: 1000px;
         width: 100%;
+        margin-bottom: auto;
     }
 
     .card {

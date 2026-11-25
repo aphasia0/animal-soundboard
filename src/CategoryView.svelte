@@ -1745,6 +1745,7 @@
 
 <style>
     main {
+        --card-ui-scale: 1.05;
         width: 100%;
         height: 100vh;
         height: 100dvh;
@@ -1756,20 +1757,22 @@
         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
     .soundboard {
-        width: 100%;
-        height: 100%;
+        /* Ingrandisce tutta la UI della card del 5% senza superare il viewport. */
+        width: calc(100% / var(--card-ui-scale));
+        height: calc(100% / var(--card-ui-scale));
         min-height: 0;
         display: flex;
         flex-direction: column;
         padding: 1rem;
         box-sizing: border-box;
         position: relative;
+        zoom: var(--card-ui-scale);
     }
     /* Back button is now a palette-btn inside center-btns */
     /* Centered flex container for shuffle + palette buttons */
     .center-btns {
         position: absolute;
-        top: 1rem;
+        top: calc(1rem + 4px);
         left: 50%;
         transform: translateX(-50%);
         display: flex;
