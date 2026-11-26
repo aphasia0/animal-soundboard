@@ -2174,6 +2174,9 @@
         border-radius: 30px;
         background: white;
         --card-accent: var(--primary-color, #39ff14);
+        /* Padding interno della card; serve anche a calcolare il respiro
+           massimo della foto rispetto al bordo. */
+        --card-pad: 2rem;
         cursor: pointer;
         overflow: hidden;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
@@ -2184,7 +2187,7 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 2rem;
+        padding: var(--card-pad);
         position: relative;
         user-select: none;
         -webkit-user-select: none;
@@ -2247,6 +2250,11 @@
     .item-button img {
         width: min(80vmin, 400px);
         height: min(80vmin, 400px);
+        /* Non far mai sbordare la foto oltre il padding: su schermi stretti
+           sarebbe tagliata proprio sul bordo interno della card. Lo spazio
+           extra arriva dal padding, meno un piccolo respiro di 8px per lato. */
+        max-width: calc(100% + 2 * var(--card-pad) - 1rem);
+        max-height: 100%;
         object-fit: contain;
         pointer-events: none;
         margin-bottom: 2rem;
@@ -2291,7 +2299,8 @@
         margin-bottom: 0.5rem;
     }
     .dual-container .item-button {
-        padding: 1rem;
+        --card-pad: 1rem;
+        padding: var(--card-pad);
         border-radius: 20px;
     }
     .dual-container .item-name {
