@@ -1584,6 +1584,7 @@
                 <button
                     class="item-button primary"
                     class:pressed={isPressed}
+                    class:playing={isPressed}
                     on:mousedown={() => {
                         if (!isTouchDevice) handlePressStart();
                     }}
@@ -1622,6 +1623,7 @@
                         <button
                             class="item-button primary"
                             class:pressed={isPressedA}
+                            class:playing={isPressedA}
                             on:mousedown={() => {
                                 if (!isTouchDevice) handlePressStartA();
                             }}
@@ -1661,6 +1663,7 @@
                         <button
                             class="item-button secondary"
                             class:pressed={isPressedB}
+                            class:playing={isPressedB}
                             on:mousedown={() => {
                                 if (!isTouchDevice) handlePressStartB();
                             }}
@@ -1744,6 +1747,13 @@
 </main>
 
 <style>
+    /* Angolo del gradiente usato dal bordo animato delle card. Registrarlo
+       come <angle> permette di animarlo in modo fluido con @keyframes. */
+    @property --card-border-angle {
+        syntax: "<angle>";
+        inherits: false;
+        initial-value: 0deg;
+    }
     main {
         --card-ui-scale: 1.05;
         width: 100%;
@@ -2163,6 +2173,7 @@
         border: none;
         border-radius: 30px;
         background: white;
+        --card-accent: var(--primary-color, #39ff14);
         cursor: pointer;
         overflow: hidden;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
@@ -2184,15 +2195,53 @@
     /* Shocking Green border for single card and first dual card */
     .item-button.primary {
         border: 14px solid var(--primary-color, #39ff14);
+        --card-accent: var(--primary-color, #39ff14);
     }
     /* Shocking Red border for second dual card */
     .item-button.secondary {
         border: 14px solid var(--secondary-color, #ff0000);
+        --card-accent: var(--secondary-color, #ff0000);
     }
     .item-button:active,
     .item-button.pressed {
         transform: scale(0.93);
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    }
+    /* Bordo "girante" mentre l'audio è in riproduzione: il gradiente conico
+       vive nel border-box (il bordo resta 14px ma trasparente) e il suo angolo
+       viene animato, così la luce percorre il perimetro della card. */
+    .item-button.playing {
+        border-color: transparent;
+        background:
+            linear-gradient(#ffffff, #ffffff) padding-box,
+            conic-gradient(
+                from var(--card-border-angle),
+                var(--card-accent) 0deg,
+                var(--card-accent) 240deg,
+                #ffffff 280deg,
+                var(--card-accent) 320deg,
+                var(--card-accent) 360deg
+            )
+            border-box;
+        animation: cardBorderSpin 1.6s linear infinite;
+        /* Fallback senza color-mix: mantiene la linea interna e l'ombra. */
+        box-shadow:
+            inset 0 0 0 3px var(--card-accent),
+            0 10px 40px rgba(0, 0, 0, 0.2);
+        box-shadow:
+            inset 0 0 0 3px var(--card-accent),
+            0 10px 40px rgba(0, 0, 0, 0.2),
+            0 0 34px color-mix(in srgb, var(--card-accent) 55%, transparent);
+    }
+    @keyframes cardBorderSpin {
+        to {
+            --card-border-angle: 360deg;
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .item-button.playing {
+            animation: none;
+        }
     }
     /* Images for animals, vehicles, etc. */
     .item-button img {
