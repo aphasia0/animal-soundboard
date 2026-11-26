@@ -1,7 +1,13 @@
 
 // Web Audio API based audio engine for instant playback on iOS
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+// iOS may leave the old context in a silent "interrupted" state after the app
+// has been in background for a while. Rebuild it when the app is reopened.
+const STALE_CONTEXT_AFTER_MS = 30_000;
 let audioContext = null;
+let audioContextNeedsReset = false;
+let hiddenAt = 0;
 
 // Cache: sound path -> decoded AudioBuffer
 const bufferCache = new Map();
@@ -14,25 +20,144 @@ let currentBuffer = null;
 // Multi-channel sources: channelId -> { source, startCtxTime, buffer }
 const channelSources = new Map();
 
-/**
- * Returns the shared AudioContext, creating it lazily.
- */
-function getAudioContext() {
-    if (!audioContext) {
-        audioContext = new AudioContextClass();
+function stopAndDisconnect(source) {
+    if (!source) return;
+    try { source.stop?.(); } catch (e) { /* already stopped */ }
+    try { source.disconnect?.(); } catch (e) { /* already disconnected */ }
+}
+
+function releasePlaybackState() {
+    stopAndDisconnect(currentSource);
+    currentSource = null;
+    currentSourceStartCtxTime = 0;
+    currentBuffer = null;
+
+    for (const entry of channelSources.values()) {
+        stopAndDisconnect(entry.source);
     }
-    return audioContext;
+    channelSources.clear();
 }
 
 /**
- * Resumes the AudioContext if it is suspended.
+ * Drops the old AudioContext and all decoded buffers tied to it.
+ * AudioBuffers and nodes must not be reused across iOS audio sessions.
+ */
+function resetAudioContext() {
+    const previous = audioContext;
+    audioContext = null;
+    audioContextNeedsReset = false;
+    releasePlaybackState();
+    bufferCache.clear();
+    cachedNoiseBuffer = null;
+
+    if (previous) {
+        try {
+            const closing = previous.close();
+            closing?.catch?.(() => {});
+        } catch (e) { /* already closed */ }
+    }
+}
+
+function createAudioContext() {
+    const ctx = new AudioContextClass();
+    audioContext = ctx;
+
+    try {
+        ctx.addEventListener('statechange', () => {
+            if (ctx !== audioContext) return;
+            if (ctx.state === 'interrupted' || ctx.state === 'closed') {
+                audioContextNeedsReset = true;
+            }
+        });
+    } catch (e) { /* statechange is optional */ }
+
+    return ctx;
+}
+
+/**
+ * Returns the shared AudioContext, creating it lazily.
+ * A context invalidated by iOS is replaced instead of resumed.
+ */
+function getAudioContext() {
+    if (
+        !audioContext ||
+        audioContext.state === 'closed' ||
+        audioContext.state === 'interrupted'
+    ) {
+        resetAudioContext();
+        return createAudioContext();
+    }
+
+    // A long-hidden iOS context can still report "running" while producing no
+    // sound, so the stale flag must force a rebuild regardless of its state.
+    if (audioContextNeedsReset) {
+        resetAudioContext();
+        return createAudioContext();
+    }
+
+    return audioContext;
+}
+
+async function ensureRunningAudioContext() {
+    let ctx = getAudioContext();
+
+    if (ctx.state !== 'running') {
+        try {
+            await ctx.resume();
+        } catch (e) {
+            console.warn('AudioContext resume failed:', e);
+        }
+    }
+
+    // Some iOS versions keep reporting "interrupted" or stay silent after the
+    // first resume. In that case a fresh context is the only reliable fix.
+    if (ctx.state !== 'running') {
+        resetAudioContext();
+        ctx = getAudioContext();
+        try {
+            await ctx.resume();
+        } catch (e) {
+            console.warn('AudioContext restart failed:', e);
+        }
+    }
+
+    return ctx;
+}
+
+/**
+ * Resumes the AudioContext if needed.
  * Must be called from a user gesture handler on iOS.
  */
 export async function resumeAudioContext() {
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
-        await ctx.resume();
-    }
+    const ctx = await ensureRunningAudioContext();
+    return ctx.state === 'running';
+}
+
+function installAudioLifecycleHooks() {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            hiddenAt = Date.now();
+            return;
+        }
+
+        if (hiddenAt && Date.now() - hiddenAt >= STALE_CONTEXT_AFTER_MS) {
+            audioContextNeedsReset = true;
+        }
+        hiddenAt = 0;
+    });
+
+    window.addEventListener('pagehide', () => {
+        hiddenAt = Date.now();
+    });
+
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted || (hiddenAt && Date.now() - hiddenAt >= STALE_CONTEXT_AFTER_MS)) {
+            audioContextNeedsReset = true;
+        }
+        hiddenAt = 0;
+    });
 }
 
 /**
@@ -78,8 +203,7 @@ export function preloadImages(urls) {
 /**
  * Fetches or retrieves a cached AudioBuffer for the given source.
  */
-async function getBuffer(src) {
-    const ctx = getAudioContext();
+async function getBuffer(src, ctx = getAudioContext()) {
     let buffer = bufferCache.get(src);
     if (!buffer) {
         try {
@@ -107,10 +231,7 @@ export async function playAudio(src, offset = 0, loop = true) {
     if (!src) return; // skip undefined/null paths
     stopAudio();
 
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
-        await ctx.resume();
-    }
+    const ctx = await ensureRunningAudioContext();
 
     if (src.startsWith('synth:')) {
         const instrument = src.split(':')[1];
@@ -121,7 +242,7 @@ export async function playAudio(src, offset = 0, loop = true) {
         return;
     }
 
-    const buffer = await getBuffer(src);
+    const buffer = await getBuffer(src, ctx);
     if (!buffer) return;
 
     // Clamp offset within buffer duration
@@ -147,11 +268,12 @@ export async function playAudio(src, offset = 0, loop = true) {
 export function stopAudio() {
     let offset = 0;
     if (currentSource && currentBuffer) {
-        const ctx = getAudioContext();
-        const elapsed = ctx.currentTime - currentSourceStartCtxTime;
+        const elapsed = audioContext
+            ? audioContext.currentTime - currentSourceStartCtxTime
+            : 0;
         offset = elapsed % currentBuffer.duration;
         try { currentSource.stop(); } catch (e) { /* already stopped */ }
-        currentSource.disconnect();
+        try { currentSource.disconnect(); } catch (e) { /* context closed */ }
     }
     currentSource = null;
     currentBuffer = null;
@@ -172,10 +294,7 @@ export async function playAudioChannel(src, channelId, offset = 0, loop = true) 
     if (!src) return; // skip undefined/null paths
     stopAudioChannel(channelId);
 
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
-        await ctx.resume();
-    }
+    const ctx = await ensureRunningAudioContext();
 
     if (src.startsWith('synth:')) {
         const instrument = src.split(':')[1];
@@ -188,7 +307,7 @@ export async function playAudioChannel(src, channelId, offset = 0, loop = true) 
         return;
     }
 
-    const buffer = await getBuffer(src);
+    const buffer = await getBuffer(src, ctx);
     if (!buffer) return;
 
     const safeOffset = offset % buffer.duration;
@@ -217,11 +336,12 @@ export function stopAudioChannel(channelId) {
     const entry = channelSources.get(channelId);
     let offset = 0;
     if (entry) {
-        const ctx = getAudioContext();
-        const elapsed = ctx.currentTime - entry.startCtxTime;
+        const elapsed = audioContext
+            ? audioContext.currentTime - entry.startCtxTime
+            : 0;
         offset = elapsed % entry.buffer.duration;
         try { entry.source.stop(); } catch (e) { /* already stopped */ }
-        entry.source.disconnect();
+        try { entry.source.disconnect(); } catch (e) { /* context closed */ }
         channelSources.delete(channelId);
     }
     return offset;
@@ -268,8 +388,8 @@ export function triggerVibration(duration = 50) {
  */
 export function playRewardSound() {
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
-        ctx.resume();
+    if (ctx.state !== 'running') {
+        ctx.resume().catch(() => {});
     }
 
     const now = ctx.currentTime;
@@ -307,8 +427,8 @@ export function playRewardSound() {
  */
 export function playVictorySound() {
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
-        ctx.resume();
+    if (ctx.state !== 'running') {
+        ctx.resume().catch(() => {});
     }
 
     const now = ctx.currentTime;
@@ -1158,3 +1278,5 @@ function triggerSynth(instrument, loop = false) {
         }
     };
 }
+
+installAudioLifecycleHooks();

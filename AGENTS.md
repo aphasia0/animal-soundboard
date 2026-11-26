@@ -44,6 +44,11 @@ npx playwright test -g "slug"
 - In modalità “Aggiungi a Home” iOS usa `apple-mobile-web-app-status-bar-style=black-translucent` e il fondo `#667eea` di `html`/`body`: non ripristinare la status bar `default` o un body chiaro, altrimenti ricompare la fascia bianca superiore.
 - `public/manifest.webmanifest` e le icone in `public/icons/` rendono l’app installabile e standalone (`display: standalone`). Le icone PNG sono generate dal sorgente `public/icons/icon.svg`; l’`apple-touch-icon` deve restare PNG perché iOS ignora gli SVG. Non c’è un service worker: l’app dipende da Supabase e non deve servire bundle in cache potenzialmente obsoleti.
 
+## Audio e lifecycle iOS
+
+- `src/audioUtils.js` tiene un solo `AudioContext`. Non controllare solo `state === "suspended"`: dopo il background iOS può usare `interrupted` o lasciare un contesto muto. Dopo oltre 30 secondi nascosto, al ritorno il contesto viene ricreato al primo playback e le cache degli `AudioBuffer` vengono invalidate.
+- Ogni riproduzione deve passare da `resumeAudioContext()`/`ensureRunningAudioContext()` prima di creare sorgenti. Se il resume fallisce, il contesto viene sostituito una volta. Non riutilizzare nodi o buffer del contesto chiuso.
+
 ## Test e2e
 
 - Playwright avvia da solo `npm run build` e sirv sulla porta 4173 (`E2E_PORT` per cambiarla). In locale `reuseExistingServer` riusa un server già attivo: se è rimasto un sirv di un build vecchio, i test girano sul bundle vecchio — chiudilo o cambia porta.

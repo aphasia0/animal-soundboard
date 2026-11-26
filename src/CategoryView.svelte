@@ -1771,14 +1771,15 @@
     /* Back button is now a palette-btn inside center-btns */
     /* Centered flex container for shuffle + palette buttons */
     .center-btns {
-        position: absolute;
-        top: calc(1rem + 4px);
-        left: 50%;
-        transform: translateX(-50%);
+        position: relative;
+        align-self: center;
         display: flex;
         flex-direction: row;
         align-items: center;
         gap: 0.5rem;
+        flex-shrink: 0;
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
         z-index: 10;
     }
     .shuffle-btn {
@@ -1834,7 +1835,7 @@
     /* Color picker popup */
     .color-picker-popup {
         position: absolute;
-        top: 5rem;
+        top: 7rem;
         left: 50%;
         transform: translateX(-50%);
         background: white;
@@ -2133,7 +2134,6 @@
         border-radius: 20px;
         overflow: hidden;
         margin-bottom: 1rem;
-        margin-top: 4.5rem;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
     .progress-bar {
@@ -2226,7 +2226,6 @@
         flex-direction: column;
         gap: 0.75rem;
         flex: 1;
-        margin-top: 4.5rem;
     }
     .dual-container.landscape {
         flex-direction: row;
@@ -2343,10 +2342,6 @@
         .dual-container .item-name {
             font-size: 1.5rem;
             bottom: 0.5rem;
-        }
-        .progress-container,
-        .dual-container {
-            margin-top: 4rem;
         }
     }
 </style>

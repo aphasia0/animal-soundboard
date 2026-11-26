@@ -61,18 +61,37 @@ test('Info and Accedi do not cover the mode title on a short screen', async ({ p
   expect(titleBox.y).toBeGreaterThanOrEqual(authBox.y + authBox.height);
 });
 
-test('card mode uses a 5% UI scale without overflowing horizontally', async ({ page }) => {
+test('card mode keeps consistent vertical spacing and a 5% UI scale', async ({ page }) => {
   await page.goto('/animals');
   await expect(page.locator('.item-button.primary')).toBeVisible();
+  await page.waitForTimeout(400); // let the card enter transition finish
 
-  const layout = await page.evaluate(() => ({
-    zoom: getComputedStyle(document.querySelector('.soundboard')).zoom,
-    scrollWidth: document.documentElement.scrollWidth,
-    viewportWidth: window.innerWidth,
-  }));
+  const layout = await page.evaluate(() => {
+    const rect = (selector) =>
+      document.querySelector(selector)?.getBoundingClientRect();
+
+    const buttons = rect('.center-btns');
+    const progress = rect('.progress-container');
+    const item = rect('.item-button.primary');
+    const board = rect('.soundboard');
+
+    return {
+      zoom: getComputedStyle(document.querySelector('.soundboard')).zoom,
+      scrollWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+      gapAfterButtons: progress.top - buttons.bottom,
+      gapBeforeCard: item.top - progress.bottom,
+      gapAtBottom: board.bottom - item.bottom,
+    };
+  });
 
   expect(Number.parseFloat(layout.zoom)).toBeCloseTo(1.05, 2);
   expect(layout.scrollWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.gapAfterButtons).toBeGreaterThan(0);
+  expect(layout.gapBeforeCard).toBeGreaterThan(0);
+  expect(layout.gapAtBottom).toBeGreaterThan(0);
+  expect(layout.gapBeforeCard).toBeCloseTo(layout.gapAfterButtons, 0);
+  expect(layout.gapAtBottom).toBeCloseTo(layout.gapAfterButtons, 0);
 });
 
 test('the app shell allows native document scrolling', async ({ page }) => {

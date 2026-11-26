@@ -162,7 +162,7 @@
       boxY + size - margin > houseY;
 
     if (overlap) {
-      resumeAudioContext();
+      await resumeAudioContext();
       playRewardSound();
       if (level >= MAX_LEVEL) {
         stopTimer();
