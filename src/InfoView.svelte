@@ -118,7 +118,7 @@
         width: 100%;
         min-height: 100vh;
         min-height: 100dvh;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #667eea;
         display: flex;
         flex-direction: column;
         align-items: center;

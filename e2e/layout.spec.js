@@ -94,8 +94,46 @@ test('card mode keeps consistent vertical spacing and a 5% UI scale', async ({ p
   expect(layout.gapAtBottom).toBeCloseTo(layout.gapAfterButtons, 0);
 });
 
+test('card lift is limited to hover-capable pointers', async ({ page }) => {
+  await page.goto('/');
+
+  const card = page.locator('.card').first();
+  await expect(card).toBeVisible();
+
+  const supportsHover = await page.evaluate(
+    () => matchMedia('(hover: hover) and (pointer: fine)').matches,
+  );
+  await card.hover();
+  await page.waitForTimeout(250);
+
+  const transform = await card.evaluate((element) => getComputedStyle(element).transform);
+  if (supportsHover) {
+    expect(transform).not.toBe('none');
+  } else {
+    expect(transform).toBe('none');
+  }
+});
+
+test('page backgrounds stay uniform during overscroll', async ({ page }) => {
+  for (const path of ['/', '/home', '/animals', '/gameshub', '/stories', '/info']) {
+    await page.goto(path);
+    await expect(page.locator('main')).toBeVisible();
+    const background = await page.evaluate(() => {
+      const style = getComputedStyle(document.querySelector('main'));
+      return {
+        color: style.backgroundColor,
+        image: style.backgroundImage,
+      };
+    });
+
+    expect(background.color, `${path} background color`).toBe('rgb(102, 126, 234)');
+    expect(background.image, `${path} background image`).toBe('none');
+  }
+});
+
 test('the app shell allows native document scrolling', async ({ page }) => {
   await page.goto('/');
+  await expect(page.locator('main')).toBeVisible();
 
   const shell = await page.evaluate(() => {
     const html = getComputedStyle(document.documentElement);
@@ -120,6 +158,7 @@ test('the app shell allows native document scrolling', async ({ page }) => {
 
 test('home scrolls the document instead of an inner viewport', async ({ page }) => {
   await page.goto('/home');
+  await expect(page.locator('main')).toBeVisible();
   await expect(page.locator('.grid .card').first()).toBeVisible();
 
   const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);

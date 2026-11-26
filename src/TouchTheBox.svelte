@@ -146,7 +146,7 @@
   }
 </script>
 
-<main class="game-area" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+<main class="game-area" style="background: #667eea;">
   {#if done}
     <div class="celebration" in:fly={{ y: 80, duration: 600 }}>
       <div class="star">⭐</div>

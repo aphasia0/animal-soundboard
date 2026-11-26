@@ -360,7 +360,7 @@
         flex-direction: column;
         align-items: flex-start;
         justify-content: flex-start;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #667eea;
         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
 
@@ -443,7 +443,9 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition:
+            transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+            box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
         min-height: 250px;
         position: relative;
@@ -453,12 +455,16 @@
     .card.enabled {
         background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
     }
-    .card.enabled:hover {
-        transform: translateY(-10px) scale(1.05);
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    @media (hover: hover) and (pointer: fine) {
+        .card.enabled:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
     }
-    .card.enabled:active {
-        transform: translateY(-5px) scale(1.02);
+    .card:active {
+        transform: translateY(1px) scale(0.985);
+        box-shadow: 0 5px 18px rgba(0, 0, 0, 0.2);
+        transition-duration: 90ms;
     }
 
     .user-card {
@@ -608,10 +614,12 @@
         border: 3px dashed rgba(255, 255, 255, 0.5) !important;
         backdrop-filter: blur(4px);
     }
-    .add-card:hover {
-        background: rgba(255, 255, 255, 0.25) !important;
-        transform: translateY(-10px) scale(1.05);
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    @media (hover: hover) and (pointer: fine) {
+        .add-card:hover {
+            background: rgba(255, 255, 255, 0.25) !important;
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
     }
     .add-card .emoji {
         color: white;

@@ -79,7 +79,7 @@
         flex-direction: column;
         align-items: flex-start;
         justify-content: flex-start;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #667eea;
         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
 
@@ -153,15 +153,24 @@
         align-items: stretch;
         justify-content: flex-start;
         cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition:
+            transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+            box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
         overflow: hidden;
         min-height: 280px;
         user-select: none;
     }
-    .card:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+    @media (hover: hover) and (pointer: fine) {
+        .card:hover {
+            transform: translateY(-8px) scale(1.015);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+        }
+    }
+    .card:active {
+        transform: translateY(1px) scale(0.985);
+        box-shadow: 0 5px 16px rgba(0, 0, 0, 0.16);
+        transition-duration: 90ms;
     }
 
     .image-container {
@@ -178,8 +187,10 @@
         object-fit: cover;
         transition: transform 0.5s ease;
     }
-    .card:hover .story-image {
-        transform: scale(1.1);
+    @media (hover: hover) and (pointer: fine) {
+        .card:hover .story-image {
+            transform: scale(1.06);
+        }
     }
 
     .emoji-fallback {
