@@ -64,6 +64,7 @@ import {
   rmSync,
 } from "fs";
 import { tmpdir } from "os";
+import { createInterface } from "readline/promises";
 import { join, extname, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
@@ -1965,6 +1966,131 @@ async function concatVideoSegments(segmentPaths, outputPath, workDir) {
   );
 }
 
+// ── Selezione delle card per il video ─────────────────────────────────────────
+// "1,3,5-7" → [0, 2, 4, 5, 6]. Accetta anche "all"/"tutte" (gestito dal chiamante).
+function parseCardSelection(answer, total) {
+  const picked = [];
+  const seen = new Set();
+  const tokens = String(answer)
+    .split(/[,\s]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  for (const token of tokens) {
+    const range = token.match(/^(\d+)-(\d+)$/);
+    let numbers;
+    if (range) {
+      const start = Number(range[1]);
+      const end = Number(range[2]);
+      if (start > end) {
+        throw new Error(
+          `Intervallo non valido: "${token}" (usa ad esempio 2-5).`
+        );
+      }
+      numbers = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+    } else {
+      numbers = [Number(token)];
+    }
+
+    for (const number of numbers) {
+      if (!Number.isInteger(number) || number < 1 || number > total) {
+        throw new Error(
+          `Selezione non valida: "${token}" (inserisci numeri da 1 a ${total}).`
+        );
+      }
+      if (!seen.has(number)) {
+        seen.add(number);
+        picked.push(number - 1);
+      }
+    }
+  }
+
+  if (picked.length === 0) {
+    throw new Error("Nessuna card selezionata.");
+  }
+  return picked;
+}
+
+// Risolve --cards "Leone,Tigre" (nomi o UUID) mantenendo l'ordine richiesto.
+function resolveCardSelection(cards, refs, flagName) {
+  const selected = [];
+  const seen = new Set();
+  const missing = [];
+
+  for (const ref of refs) {
+    let card = cards.find((entry) => entry.id === ref);
+
+    if (!card) {
+      const matches = cards.filter(
+        (entry) => foldName(entry.name) === foldName(ref)
+      );
+      if (matches.length > 1) {
+        throw new Error(
+          `${flagName}: più card si chiamano "${ref}":\n` +
+            matches
+              .map((entry) => `  - ${entry.name} (${entry.id})`)
+              .join("\n") +
+            "\nUsa l'UUID della card per sceglierla."
+        );
+      }
+      card = matches[0];
+    }
+
+    if (!card) {
+      missing.push(ref);
+      continue;
+    }
+    if (!seen.has(card.id)) {
+      seen.add(card.id);
+      selected.push(card);
+    }
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `${flagName}: card non trovate: ${missing.join(", ")}.\n` +
+        "Card disponibili:\n" +
+        cards.map((entry) => `  - ${entry.name}`).join("\n")
+    );
+  }
+
+  return selected;
+}
+
+async function promptCardSelection(cards, category) {
+  if (!process.stdin.isTTY) {
+    throw new Error(
+      '--select-cards richiede un terminale interattivo. Usa --cards "Nome1,Nome2".'
+    );
+  }
+
+  console.log(`\nCard in ${describeCategory(category)}:`);
+  cards.forEach((card, index) => {
+    console.log(`  ${String(index + 1).padStart(2, " ")}. ${card.name}`);
+  });
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    while (true) {
+      const answer = (
+        await rl.question(
+          '\nQuali card vuoi? es. "1,3,5-7" (invio = tutte): '
+        )
+      ).trim();
+      if (!answer || /^(a|all|tutte|\*)$/i.test(answer)) return cards;
+      try {
+        return parseCardSelection(answer, cards.length).map(
+          (index) => cards[index]
+        );
+      } catch (err) {
+        console.error(`⚠️  ${err.message}`);
+      }
+    }
+  } finally {
+    rl.close();
+  }
+}
+
 async function runVideo(flags) {
   const categoryRef = selectedCategoryRef(flags);
   if (!categoryRef) {
@@ -2015,6 +2141,14 @@ async function runVideo(flags) {
     throw new Error(`--limit non valido: ${rawLimit} (intero > 0)`);
   }
 
+  const cardRefs = splitFlagList(flagValue(flags, "cards"));
+  const selectCards = Boolean(flags["select-cards"]);
+  if (selectCards && cardRefs.length > 0) {
+    throw new Error(
+      'Usa solo uno tra --select-cards e --cards "Nome1,Nome2".'
+    );
+  }
+
   logParams("📋 Parametri video:", {
     category: categoryRef,
     out: outDir,
@@ -2027,6 +2161,11 @@ async function runVideo(flags) {
     voice: voice || "casuale (una sola voce per tutte le card)",
     languageCode,
     limit,
+    cards: selectCards
+      ? "selezione interattiva"
+      : cardRefs.length > 0
+        ? cardRefs
+        : "tutte",
     apiKey: "configurata",
   });
 
@@ -2041,11 +2180,22 @@ async function runVideo(flags) {
   if (order === "name") {
     cards.sort((a, b) => String(a.name).localeCompare(String(b.name), "it"));
   }
-  if (limit !== null) cards = cards.slice(0, limit);
 
   if (cards.length === 0) {
     throw new Error(`Nessuna card trovata in ${describeCategory(category)}.`);
   }
+
+  if (cardRefs.length > 0) {
+    // L'ordine del video segue l'elenco passato a --cards.
+    cards = resolveCardSelection(cards, cardRefs, "--cards");
+  } else if (selectCards) {
+    cards = await promptCardSelection(cards, category);
+  }
+  if (cards.length === 0) {
+    throw new Error("Nessuna card selezionata.");
+  }
+
+  if (limit !== null) cards = cards.slice(0, limit);
 
   console.log(
     `\n🎬 Creo il video per ${describeCategory(category)} (${cards.length} card)`
@@ -2265,6 +2415,14 @@ ESEMPI PER OGNI COMANDO
   SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
     --category "Animali" --per-card --out ./videos
 
+  # Scegli a terminale quali card includere (elenco numerato; invio = tutte)
+  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
+    --category "Animali" --select-cards --out ./videos
+
+  # Solo alcune card, nell'ordine indicato (nomi o UUID separati da virgola)
+  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
+    --category "Animali" --cards "Leone,Tigre,Gatto" --out ./videos
+
   # Ordine audio inverso (prima il suono della card, poi il nome) e pausa di 0.4s
   SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
     --category <uuid_categoria|nome> --audio-order sound-first --gap 0.4
@@ -2326,6 +2484,10 @@ Flag video:
   --out <dir>               Cartella di destinazione [default: ./videos]
   --name <nome>             Nome del file video, senza estensione [default: nome categoria]
   --per-card                Crea un video separato per ogni card
+  --cards "A,B"             Includi solo le card indicate (nomi o UUID, separati
+                            da virgola); l'ordine del video segue questo elenco
+  --select-cards            Mostra le card della categoria e chiedi quali includere
+                            (es. "1,3,5-7"; invio = tutte)
   --size <WxH>              Risoluzione del video [default: 1080x1080]
   --fps <n>                 Frame rate del video [default: 30]
   --order created|name      Ordine delle card [default: created]

@@ -326,12 +326,22 @@ node scripts/upload-card.js video --category "Animali" --out ./videos
 # Un video separato per ogni card
 node scripts/upload-card.js video --category "Animali" --per-card
 
+# Scegli a terminale quali card includere (elenco numerato; invio = tutte)
+node scripts/upload-card.js video --category "Animali" --select-cards
+
+# Solo alcune card, nell'ordine indicato (nomi o UUID)
+node scripts/upload-card.js video --category "Animali" --cards "Leone,Tigre,Gatto"
+
 # Ordine audio inverso (prima il suono, poi il nome) e pausa tra le card
 node scripts/upload-card.js video --category "Animali" \
   --audio-order sound-first --gap 0.4 --size 1080x1920
 ```
 
-Opzioni: `--out <dir>` (default `./videos`), `--name <file>`, `--size WxH`
+Il video viene solo salvato in locale nella cartella `--out`: il comando non
+carica nulla su YouTube.
+
+Opzioni: `--out <dir>` (default `./videos`), `--name <file>`, `--cards "A,B"`
+(nomi o UUID, l'ordine segue l'elenco), `--select-cards`, `--size WxH`
 (default `1080x1080`), `--fps 30`, `--order created|name`, `--audio-order
 name-first|sound-first`, `--gap <sec>`, `--voice <nome|FEMALE|MALE>`, `--lang
 it-IT`, `--limit <n>`, `--per-card`.
