@@ -340,7 +340,10 @@ node scripts/upload-card.js video --category "Animali" \
 Il video viene solo salvato in locale nella cartella `--out`: il comando non
 carica nulla su YouTube. Il nome del file include data e ora (es.
 `animali-2026-11-27_15-42-10.mp4`), così più esecuzioni in batch non si
-sovrascrivono; usa `--no-timestamp` per un nome fisso.
+sovrascrivono; usa `--no-timestamp` per un nome fisso. Se il video contiene una
+sola card (es. con `--cards` o `--limit 1`), il nome di default è quello della
+card (`leone-...mp4`); altrimenti è quello della categoria. Con `--name` scegli
+tu il nome base.
 
 Opzioni: `--out <dir>` (default `./videos`), `--name <file>` (nome base, senza
 estensione), `--no-timestamp`, `--cards "A,B"` (nomi o UUID, l'ordine segue

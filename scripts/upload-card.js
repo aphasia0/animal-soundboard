@@ -2218,8 +2218,13 @@ async function runVideo(flags) {
   );
   mkdirSync(workDir, { recursive: true });
 
+  const singleSelectedCard =
+    !perCard && cards.length === 1 ? cards[0] : null;
   const rawBaseName = safeFileName(
-    flagValue(flags, "name") || slugify(category.name),
+    flagValue(flags, "name") ||
+      (singleSelectedCard
+        ? singleSelectedCard.name.toLowerCase()
+        : slugify(category.name)),
     "categoria"
   );
   const baseName = flags["no-timestamp"]
@@ -2498,7 +2503,8 @@ Flag video:
   --category <uuid|nome>    Categoria Supabase da trasformare in video (obbligatorio)
   --out <dir>               Cartella di destinazione [default: ./videos]
   --name <nome>             Nome base del file, senza estensione; data e ora
-                            vengono aggiunte in fondo [default: nome categoria]
+                            vengono aggiunte in fondo [default: nome della card
+                            se è una sola, altrimenti nome categoria]
   --no-timestamp            Non aggiunge data e ora al nome del file
   --per-card                Crea un video separato per ogni card
   --cards "A,B"             Includi solo le card indicate (nomi o UUID, separati
