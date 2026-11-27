@@ -338,13 +338,15 @@ node scripts/upload-card.js video --category "Animali" \
 ```
 
 Il video viene solo salvato in locale nella cartella `--out`: il comando non
-carica nulla su YouTube.
+carica nulla su YouTube. Il nome del file include data e ora (es.
+`animali-2026-11-27_15-42-10.mp4`), così più esecuzioni in batch non si
+sovrascrivono; usa `--no-timestamp` per un nome fisso.
 
-Opzioni: `--out <dir>` (default `./videos`), `--name <file>`, `--cards "A,B"`
-(nomi o UUID, l'ordine segue l'elenco), `--select-cards`, `--size WxH`
-(default `1080x1080`), `--fps 30`, `--order created|name`, `--audio-order
-name-first|sound-first`, `--gap <sec>`, `--voice <nome|FEMALE|MALE>`, `--lang
-it-IT`, `--limit <n>`, `--per-card`.
+Opzioni: `--out <dir>` (default `./videos`), `--name <file>` (nome base, senza
+estensione), `--no-timestamp`, `--cards "A,B"` (nomi o UUID, l'ordine segue
+l'elenco), `--select-cards`, `--size WxH` (default `1080x1080`), `--fps 30`,
+`--order created|name`, `--audio-order name-first|sound-first`, `--gap <sec>`,
+`--voice <nome|FEMALE|MALE>`, `--lang it-IT`, `--limit <n>`, `--per-card`.
 
 Senza `--voice` viene scelta una voce casuale una sola volta e riusata per tutte
 le card, così il video resta coerente. Le card senza immagine o audio vengono

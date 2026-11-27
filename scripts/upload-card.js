@@ -1815,6 +1815,16 @@ function safeFileName(value, fallback = "video") {
   return cleaned || fallback;
 }
 
+// Timestamp leggibile e sicuro per i nomi file: 2026-11-27_15-42-10.
+// Serve a non sovrascrivere i video quando il comando gira in batch.
+function fileTimestamp(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`
+  );
+}
+
 function extensionFromUrl(url) {
   try {
     return extname(new URL(url).pathname).replace(".", "").toLowerCase() || "bin";
@@ -2208,10 +2218,13 @@ async function runVideo(flags) {
   );
   mkdirSync(workDir, { recursive: true });
 
-  const baseName = safeFileName(
+  const rawBaseName = safeFileName(
     flagValue(flags, "name") || slugify(category.name),
     "categoria"
   );
+  const baseName = flags["no-timestamp"]
+    ? rawBaseName
+    : `${rawBaseName}-${fileTimestamp()}`;
   const results = [];
   const failures = [];
 
@@ -2408,6 +2421,8 @@ ESEMPI PER OGNI COMANDO
   # Scarica tutte le card della categoria, genera il TTS del nome e monta
   # per ogni card: immagine fissa + [TTS nome][audio della card].
   # I segmenti vengono uniti in un unico video con cambio immagine a fine audio.
+  # Il nome del file include data e ora (es. animali-2026-11-27_15-42-10.mp4),
+  # così più esecuzioni in batch non si sovrascrivono.
   SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
     --category "Animali" --out ./videos
 
@@ -2482,7 +2497,9 @@ Flag delete-card:
 Flag video:
   --category <uuid|nome>    Categoria Supabase da trasformare in video (obbligatorio)
   --out <dir>               Cartella di destinazione [default: ./videos]
-  --name <nome>             Nome del file video, senza estensione [default: nome categoria]
+  --name <nome>             Nome base del file, senza estensione; data e ora
+                            vengono aggiunte in fondo [default: nome categoria]
+  --no-timestamp            Non aggiunge data e ora al nome del file
   --per-card                Crea un video separato per ogni card
   --cards "A,B"             Includi solo le card indicate (nomi o UUID, separati
                             da virgola); l'ordine del video segue questo elenco
