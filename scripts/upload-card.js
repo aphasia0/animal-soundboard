@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * upload-card.js — CLI per gestire e creare card su Supabase o in locale
- * con supporto alla generazione AI via prompt (Nano Banana / Google TTS) o da video.
+ * con supporto alla generazione AI via prompt (Nano Banana / TTS HTTP) o da video.
  *
  * Comandi:
  *   upload            Crea una card (audio WebM + immagine) da PROMPT o da VIDEO
@@ -24,9 +24,9 @@
  *   SUPABASE_PASSWORD=*** node upload-card.js delete-card --name "Leone" --dry-run
  *   SUPABASE_PASSWORD=*** node upload-card.js delete-card --name "Leone"
  *
- * ── Flusso da Prompt (Google AI) ──────────────────────────────────────────────
+ * ── Flusso da Prompt (AI + TTS) ───────────────────────────────────────────────
  *   # Genera immagine (Nano Banana / Gemini 3.1 Flash Image) e audio voce TTS:
- *   GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \
+ *   GEMINI_API_KEY=*** node upload-card.js upload \
  *     --prompt "Un leone ruggente nella savana" \
  *     --category <uuid_categoria|nome>
  *
@@ -37,8 +37,9 @@
  *     --audio-mode music \
  *     --category <uuid_categoria|nome>
  *
- *   # Modalità effetti (ElevenLabs Sound Effects, immagine sempre Nano Banana).
+ *   # Modalità effetti (nome card via TTS + ElevenLabs Sound Effects).
  *   GEMINI_API_KEY=*** ELEVENLABS_API_KEY=*** node upload-card.js upload \
+ *     --name "Tuono" \
  *     --prompt "Un tuono lontano durante un temporale" \
  *     --audio-mode effects \
  *     --seconds 8 \
@@ -48,7 +49,7 @@
  *   - Node.js 20+
  *   - ffmpeg nel PATH (verifica con `ffmpeg -version`)
  *   - GEMINI_API_KEY (immagini Nano Banana + musica Lyria)
- *   - GOOGLE_TTS_API_KEY (voce Google Text-to-Speech)
+ *   - TTS_URL (facoltativo, default https://tts.antoniogiordano.dev)
  *   - ELEVENLABS_API_KEY (o ELEVENLABS_TOKEN) per --audio-mode effects
  *   - SUPABASE_EMAIL e SUPABASE_PASSWORD per comandi remoti
  */
@@ -106,6 +107,9 @@ const ELEVENLABS_SFX_OUTPUT_FORMAT = "mp3_44100_128";
 const ELEVENLABS_SFX_MIN_SECONDS = 0.5;
 const ELEVENLABS_SFX_MAX_SECONDS = 30;
 const ELEVENLABS_SFX_TIMEOUT_MS = 240000;
+const DEFAULT_TTS_URL = "https://tts.antoniogiordano.dev";
+const TTS_SPEED = 3;
+const TTS_TIMEOUT_MS = 120000;
 const DEFAULT_VIDEO_SIZE = "1080x1080";
 const DEFAULT_VIDEO_FPS = 30;
 const IMAGE_CONTENT_TYPES = {
@@ -249,7 +253,6 @@ function parseUploadArgs(flags) {
   const seconds = rawSeconds === null ? null : Number(rawSeconds);
 
   const geminiApiKey = cleanCredential(process.env.GEMINI_API_KEY);
-  const ttsApiKey = cleanCredential(process.env.GOOGLE_TTS_API_KEY);
 
   const elevenLabsApiKey = cleanCredential(
     flagValue(flags, "elevenlabs-key") ||
@@ -268,7 +271,6 @@ function parseUploadArgs(flags) {
     musicModel,
     seconds,
     geminiApiKey,
-    ttsApiKey,
     elevenLabsApiKey,
     input: flagValue(flags, "input"),
     start: parseFloat(flagValue(flags, "start")),
@@ -283,141 +285,139 @@ function parseUploadArgs(flags) {
   };
 }
 
-// ── Generazione Audio Google TTS (Voice Mode) ──────────────────────────────────
-const TTS_VOICES = {
-  FEMALE: [
-    "it-IT-Neural2-A",
-    "it-IT-Neural2-E",
-    "it-IT-Wavenet-A",
-    "it-IT-Wavenet-D",
-    "it-IT-Standard-A",
-    "it-IT-Standard-D",
-    "it-IT-Journey-F",
-  ],
-  MALE: [
-    "it-IT-Neural2-C",
-    "it-IT-Wavenet-B",
-    "it-IT-Wavenet-C",
-    "it-IT-Standard-B",
-    "it-IT-Standard-C",
-    "it-IT-Journey-D",
-  ],
-};
-
-function pickTtsVoice(voice) {
-  const requested = voice ? String(voice).trim() : "";
-  const gender = requested.toUpperCase();
-
-  if (!requested) {
-    const randomGender = Math.random() < 0.5 ? "FEMALE" : "MALE";
-    const pool = TTS_VOICES[randomGender];
-    return {
-      name: pool[Math.floor(Math.random() * pool.length)],
-      gender: randomGender,
-    };
-  }
-
-  if (gender === "FEMALE" || gender === "MALE") {
-    const pool = TTS_VOICES[gender];
-    return {
-      name: pool[Math.floor(Math.random() * pool.length)],
-      gender,
-    };
-  }
-
-  return { name: requested, gender: null };
+// ── Generazione Audio TTS HTTP (Voice Mode / Nome card) ───────────────────────
+function ttsEndpoint() {
+  const base = (cleanCredential(process.env.TTS_URL) || DEFAULT_TTS_URL).replace(/\/+$/, "");
+  return /\/tts$/i.test(base) ? base : `${base}/tts`;
 }
 
-async function synthesizeGoogleTtsMp3(text, apiKey, options = {}) {
-  const {
-    voice = null,
-    pitch = null,
-    speakingRate = null,
-    languageCode = "it-IT",
-  } = options;
+function buildTtsUrl(text) {
+  const url = new URL(ttsEndpoint());
+  url.searchParams.set("text", text);
+  url.searchParams.set("speed", String(TTS_SPEED));
+  return url;
+}
 
-  const selected = pickTtsVoice(voice);
-  const isJourney = selected.name.includes("Journey");
-  const audioConfig = { audioEncoding: "MP3" };
+function audioExtensionFromResponse(contentType, buffer) {
+  const type = String(contentType || "").toLowerCase();
+  if (type.includes("wav") || type.includes("wave")) return "wav";
+  if (type.includes("mpeg") || type.includes("mp3")) return "mp3";
+  if (type.includes("ogg") || type.includes("opus")) return "ogg";
+  if (type.includes("webm")) return "webm";
+  if (type.includes("mp4") || type.includes("m4a") || type.includes("aac")) return "m4a";
 
-  if (!isJourney) {
-    audioConfig.pitch =
-      pitch === null ? Number((Math.random() * 8.0 - 4.0).toFixed(2)) : pitch;
-    audioConfig.speakingRate =
-      speakingRate === null
-        ? Number((Math.random() * 0.24 + 0.88).toFixed(2))
-        : speakingRate;
-    console.log(
-      `🎤 Google TTS: Voce=${selected.name}${
-        selected.gender ? ` (${selected.gender})` : ""
-      }, Pitch=${audioConfig.pitch}, Rate=${audioConfig.speakingRate}`
-    );
-  } else {
-    console.log(
-      `🎤 Google TTS: Voce=${selected.name}${
-        selected.gender ? ` (${selected.gender})` : ""
-      } [Voci Journey usano pitch/rate predefiniti]`
-    );
+  // Fallback sul magic number quando il server non dichiara il tipo.
+  const header = buffer.subarray(0, 4).toString("latin1");
+  if (header === "RIFF") return "wav";
+  if (header === "OggS") return "ogg";
+  return "mp3";
+}
+
+async function synthesizeTtsFile(text, { dir = tmpdir(), label = "TTS" } = {}) {
+  const spokenText = String(text || "").trim();
+  if (!spokenText) {
+    throw new Error("Testo mancante per la sintesi vocale TTS.");
   }
 
-  const ttsBody = {
-    input: { text },
-    voice: {
-      languageCode,
-      name: selected.name,
-      ...(selected.gender ? { ssmlGender: selected.gender } : {}),
-    },
-    audioConfig,
-  };
-  const endpoint = "https://texttospeech.googleapis.com/v1/text:synthesize";
-  console.error(`🌐 POST ${endpoint}`);
-  logParams("   Parametri TTS:", ttsBody);
+  const url = buildTtsUrl(spokenText);
+  console.log(`🗣️  ${label}: genero la voce con il TTS (speed ${TTS_SPEED})...`);
+  console.error(`🌐 GET ${redactUrl(url.toString())}`);
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...googleAuthHeaders(apiKey),
-    },
-    body: JSON.stringify(ttsBody),
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: { Accept: "audio/*" },
+      signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw new Error(`TTS non raggiungibile (${redactUrl(ttsEndpoint())}): ${err.message}`);
+  }
   console.error(`   ← HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
 
   if (!response.ok) {
     const errText = await response.text();
-    const hint = response.status === 401
-      ? "\nSuggerimento: verifica che GOOGLE_TTS_API_KEY sia una API key valida."
-      : "";
-    throw new Error(`Google TTS Fallito (${response.status}): ${errText}${hint}`);
+    throw new Error(`TTS fallito (${response.status}): ${errText}`);
   }
 
-  const data = await response.json();
-  if (!data.audioContent) {
-    throw new Error("Risposta Google TTS priva di audioContent.");
+  const contentType = response.headers.get("content-type") || "";
+  const audioBuffer = Buffer.from(await response.arrayBuffer());
+  if (audioBuffer.length === 0) {
+    throw new Error("TTS non ha restituito audio.");
   }
   logParams("   Risposta TTS:", {
-    audioBytes: Buffer.byteLength(data.audioContent, "base64"),
+    contentType,
+    audioBytes: audioBuffer.length,
   });
 
-  const tmpMp3 = join(
-    options.dir || tmpdir(),
-    `tts-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp3`
+  const extension = audioExtensionFromResponse(contentType, audioBuffer);
+  const tmpAudio = join(
+    dir,
+    `tts-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`
   );
-  writeFileSync(tmpMp3, Buffer.from(data.audioContent, "base64"));
-  return tmpMp3;
+  writeFileSync(tmpAudio, audioBuffer);
+  return tmpAudio;
 }
 
-async function generateGoogleTTS(text, apiKey) {
-  const tmpMp3 = await synthesizeGoogleTtsMp3(text, apiKey);
+// Concatena più file audio in un unico WebM. Ogni voce può avere il proprio
+// taglio (`seconds`), così in modalità effects il limite vale solo per l'effetto.
+function concatAudioFilesToWebm(entries, label = "audio") {
+  if (entries.length === 0) {
+    throw new Error("Nessun file audio da concatenare.");
+  }
 
-  const tmpWebm = join(tmpdir(), `card-voice-${Date.now()}.webm`);
-  const convertCommand = `ffmpeg -y -i "${tmpMp3}" -c:a libopus -b:a 64k "${tmpWebm}"`;
-  console.log(`ffmpeg: converto TTS mp3 in WebM (libopus)...`);
+  const tmpWebm = join(
+    tmpdir(),
+    `card-audio-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webm`
+  );
+  const inputs = entries.map((entry) => `-i "${entry.path}"`).join(" ");
+  const chains = entries.map((entry, index) => {
+    const trim =
+      Number.isFinite(entry.seconds) && entry.seconds > 0
+        ? `atrim=duration=${entry.seconds},asetpts=PTS-STARTPTS,`
+        : "";
+    return (
+      `[${index}:a]${trim}aresample=44100:async=1,` +
+      `aformat=sample_fmts=fltp:channel_layouts=stereo[a${index}]`
+    );
+  });
+  const concatInputs = entries.map((_, index) => `[a${index}]`).join("");
+  const filter =
+    `${chains.join(";")};${concatInputs}concat=n=${entries.length}:v=0:a=1[aout]`;
+  const concatCommand =
+    `ffmpeg -y ${inputs} -filter_complex "${filter}" -map "[aout]" ` +
+    `-map_metadata -1 -c:a libopus -b:a 64k "${tmpWebm}"`;
+
+  console.log(`ffmpeg: unisco ${entries.length} audio in WebM (libopus) per ${label}...`);
+  console.error(`   Comando: ${concatCommand}`);
+  try {
+    execSync(concatCommand, { stdio: "pipe" });
+    return tmpWebm;
+  } catch (err) {
+    try { unlinkSync(tmpWebm); } catch {}
+    throw err;
+  }
+}
+
+async function generateTtsAudio(text, options = {}) {
+  const tmpAudio = await synthesizeTtsFile(text, options);
+  const tmpWebm = join(
+    tmpdir(),
+    `card-voice-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webm`
+  );
+  const convertCommand =
+    `ffmpeg -y -i "${tmpAudio}" -vn -map 0:a:0 -map_metadata -1 ` +
+    `-c:a libopus -b:a 64k "${tmpWebm}"`;
+  console.log(`ffmpeg: converto il TTS in WebM (libopus)...`);
   console.error(`   Comando: ${convertCommand}`);
-  execSync(convertCommand, { stdio: "pipe" });
-
-  try { unlinkSync(tmpMp3); } catch {}
-  return tmpWebm;
+  try {
+    execSync(convertCommand, { stdio: "pipe" });
+    return tmpWebm;
+  } catch (err) {
+    try { unlinkSync(tmpWebm); } catch {}
+    throw err;
+  } finally {
+    try { unlinkSync(tmpAudio); } catch {}
+  }
 }
 
 // ── Generazione Audio Musica (Google Lyria 3.5 Music Generation) ───────────────
@@ -529,7 +529,7 @@ async function generateGoogleMusic(prompt, apiKey, seconds = null) {
 }
 
 // ── Generazione Effetti (ElevenLabs Sound Effects) ────────────────────────────
-async function generateElevenLabsSoundEffect(prompt, apiKey, seconds = null) {
+async function synthesizeElevenLabsSoundEffect(prompt, apiKey, seconds = null) {
   if (!apiKey) {
     throw new Error("API Key ElevenLabs mancante per la generazione effetti.");
   }
@@ -594,12 +594,13 @@ async function generateElevenLabsSoundEffect(prompt, apiKey, seconds = null) {
     requestedDurationSeconds: hasDuration ? seconds : null,
   });
 
-  return convertAudioToWebm(
-    audioBuffer.toString("base64"),
-    contentType,
-    seconds,
-    "ElevenLabs"
+  const extension = audioExtensionFromResponse(contentType, audioBuffer);
+  const tmpAudio = join(
+    tmpdir(),
+    `elevenlabs-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`
   );
+  writeFileSync(tmpAudio, audioBuffer);
+  return tmpAudio;
 }
 
 // ── Generazione Immagine Google AI (Nano Banana) ──────────────────────────────
@@ -1132,7 +1133,7 @@ async function runRemote({ audioWebm, imagePath, name, category }, connection = 
 // ── Comando: upload ───────────────────────────────────────────────────────────
 async function runUpload(flags) {
   const args = parseUploadArgs(flags);
-  let { mode, prompt, fullPrompt, additionalInfo, audioMode, musicModel, seconds, geminiApiKey, ttsApiKey, elevenLabsApiKey, input, start, end, image, name, key, category, speechText } = args;
+  let { mode, prompt, fullPrompt, additionalInfo, audioMode, musicModel, seconds, geminiApiKey, elevenLabsApiKey, input, start, end, image, name, key, category, speechText } = args;
 
   logParams("📋 Parametri upload:", {
     mode,
@@ -1150,7 +1151,7 @@ async function runUpload(flags) {
     end: Number.isFinite(end) ? end : null,
     image,
     geminiApiKey: geminiApiKey ? "GEMINI_API_KEY configurata" : "GEMINI_API_KEY assente",
-    ttsApiKey: ttsApiKey ? "GOOGLE_TTS_API_KEY configurata" : "GOOGLE_TTS_API_KEY assente",
+    tts: `API HTTP ${ttsEndpoint()} (speed ${TTS_SPEED})`,
     elevenLabsApiKey: elevenLabsApiKey ? "configurata" : "assente",
   });
 
@@ -1204,21 +1205,39 @@ async function runUpload(flags) {
         }
         const durationLabel = seconds === null ? "durata automatica" : `${seconds} secondi`;
         console.log(
-          `Modalità Audio: EFFECTS (ElevenLabs ${ELEVENLABS_SFX_MODEL}, ${durationLabel})...`
+          `Modalità Audio: EFFECTS (nome card via TTS + ElevenLabs ${ELEVENLABS_SFX_MODEL}, ${durationLabel})...`
         );
-        tempWebmAudio = await generateElevenLabsSoundEffect(
-          fullPrompt,
-          elevenLabsApiKey,
-          seconds
-        );
-      } else {
-        if (!ttsApiKey) {
-          throw new Error(
-            "GOOGLE_TTS_API_KEY mancante per la sintesi vocale."
+        // Il nome della card è sempre pronunciato dal TTS HTTP; ElevenLabs
+        // genera solo l'effetto, accodato dopo la voce.
+        const rawAudioFiles = [];
+        try {
+          const ttsPath = await synthesizeTtsFile(name, { label: "TTS del nome" });
+          rawAudioFiles.push(ttsPath);
+          const effectPath = await synthesizeElevenLabsSoundEffect(
+            fullPrompt,
+            elevenLabsApiKey,
+            seconds
           );
+          rawAudioFiles.push(effectPath);
+          tempWebmAudio = concatAudioFilesToWebm(
+            [
+              { path: ttsPath },
+              { path: effectPath, seconds },
+            ],
+            "nome card + effetto"
+          );
+        } finally {
+          for (const file of rawAudioFiles) {
+            try { unlinkSync(file); } catch {}
+          }
         }
-        console.log("Modalità Audio: VOICE (generazione Google Text-to-Speech)...");
-        tempWebmAudio = await generateGoogleTTS(speechText, ttsApiKey);
+      } else {
+        console.log(
+          `Modalità Audio: VOICE (TTS HTTP del nome, speed ${TTS_SPEED})...`
+        );
+        tempWebmAudio = await generateTtsAudio(speechText, {
+          label: "TTS della voce",
+        });
       }
 
       // 2. Image generation
@@ -1238,7 +1257,7 @@ async function runUpload(flags) {
         console.error(
           "Parametri mancanti per upload. Usa:\n\n" +
             "  # DA PROMPT (Google AI):\n" +
-            "  GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \\\n" +
+            "  GEMINI_API_KEY=*** node upload-card.js upload \\\n" +
             '    --prompt "Un leone ruggente nella savana" \\\n' +
             "    --category <uuid_categoria|nome> [--audio-mode voice|music|effects] [--name \"Leone\"]\n\n" +
             "  # DA VIDEO/FILE:\n" +
@@ -1881,9 +1900,6 @@ function videoScaleFilter(size) {
 async function buildCardSegment({
   card,
   index,
-  apiKey,
-  voice,
-  languageCode,
   size,
   fps,
   soundFirst,
@@ -1900,12 +1916,9 @@ async function buildCardSegment({
   const soundPath = await downloadToFile(card.sound_url, workDir, `snd-${index}`);
 
   console.log(`🗣️  Genero il TTS del nome "${card.name}"...`);
-  const ttsPath = await synthesizeGoogleTtsMp3(card.name, apiKey, {
-    voice,
-    languageCode,
-    pitch: 0,
-    speakingRate: 1,
+  const ttsPath = await synthesizeTtsFile(card.name, {
     dir: workDir,
+    label: "TTS del nome",
   });
 
   const sequence = soundFirst ? [soundPath, ttsPath] : [ttsPath, soundPath];
@@ -2107,13 +2120,6 @@ async function runVideo(flags) {
     throw new Error('Parametro mancante: --category <uuid_categoria|nome>');
   }
 
-  const apiKey = cleanCredential(process.env.GOOGLE_TTS_API_KEY);
-  if (!apiKey) {
-    throw new Error(
-      "GOOGLE_TTS_API_KEY mancante per il text-to-speech."
-    );
-  }
-
   const outDir = resolve(flagValue(flags, "out") || join(process.cwd(), "videos"));
   const perCard = Boolean(flags["per-card"]);
   const size = (flagValue(flags, "size") || DEFAULT_VIDEO_SIZE).toLowerCase();
@@ -2143,8 +2149,6 @@ async function runVideo(flags) {
     );
   }
 
-  const voice = pickTtsVoice(flagValue(flags, "voice")).name;
-  const languageCode = flagValue(flags, "lang") || "it-IT";
   const rawLimit = flagValue(flags, "limit");
   const limit = rawLimit === null ? null : Number(rawLimit);
   if (limit !== null && (!Number.isInteger(limit) || limit <= 0)) {
@@ -2168,8 +2172,7 @@ async function runVideo(flags) {
     gap,
     order,
     audioOrder,
-    voice: voice || "casuale (una sola voce per tutte le card)",
-    languageCode,
+    tts: `API HTTP ${ttsEndpoint()} (speed ${TTS_SPEED})`,
     limit,
     cards: selectCards
       ? "selezione interattiva"
@@ -2240,9 +2243,6 @@ async function runVideo(flags) {
         const segment = await buildCardSegment({
           card,
           index,
-          apiKey,
-          voice,
-          languageCode,
           size,
           fps,
           soundFirst: audioOrder === "sound-first",
@@ -2297,9 +2297,57 @@ async function runVideo(flags) {
 }
 
 // ── Help ──────────────────────────────────────────────────────────────────────
+function helpColorsEnabled() {
+  if (process.env.NO_COLOR) return false;
+  if (process.env.FORCE_COLOR && process.env.FORCE_COLOR !== "0") return true;
+  return Boolean(process.stdout.isTTY) && process.env.TERM !== "dumb";
+}
+
+function paintHelp(code, text) {
+  return `\x1b[${code}m${text}\x1b[0m`;
+}
+
+// Colora l'aiuto senza duplicare gli escape ANSI dentro il template: ogni riga
+// viene classificata (titolo, sezione, flag, variabile, comando, commento).
+function colorizeHelp(text) {
+  if (!helpColorsEnabled()) return text;
+
+  return text
+    .split("\n")
+    .map((line) => {
+      if (/^\s*─+$/.test(line)) return paintHelp("2", line);
+      if (line.startsWith("Sound Pad CLI")) return paintHelp("1;36", line);
+      if (/^[A-Z0-9 '()/.,-]+$/.test(line)) return paintHelp("1;35", line);
+      if (/^\S.*:$/.test(line)) return paintHelp("1;36", line);
+
+      const numbered = line.match(/^(\d+\. Comando:)(.*)$/);
+      if (numbered) {
+        return paintHelp("1", numbered[1]) + paintHelp("36", numbered[2]);
+      }
+
+      // I commenti vanno prima dei flag: contengono esempi come --input.
+      const comment = line.match(/^(\s+)(#.*)$/);
+      if (comment) return comment[1] + paintHelp("2", comment[2]);
+
+      const envVar = line.match(/^(\s+)([A-Z][A-Z0-9_]+)(\s{2,}.*)$/);
+      if (envVar) return envVar[1] + paintHelp("32", envVar[2]) + envVar[3];
+
+      const command = line.match(/^(\s{2})([a-z][a-z0-9-]+)(\s{2,}.*)$/);
+      if (command) {
+        return command[1] + paintHelp("32", command[2]) + command[3];
+      }
+
+      // Nelle righe di esempio colora tutti i flag e il comando CLI.
+      return line
+        .replace(/(--[A-Za-z0-9-]+)/g, (match) => paintHelp("33", match))
+        .replace(/node upload-card\.js/g, (match) => paintHelp("36", match));
+    })
+    .join("\n");
+}
+
 function printHelp() {
-  console.log(`
-Sound Pad CLI — gestione e generazione card con Google AI e Supabase
+  console.log(colorizeHelp(`
+Sound Pad CLI — gestione e generazione card con AI, TTS HTTP e Supabase
 
 Uso:
   node upload-card.js <comando> [opzioni]
@@ -2384,8 +2432,8 @@ ESEMPI PER OGNI COMANDO
   SUPABASE_PASSWORD=*** node upload-card.js delete-card --name "Gatto" --all
 
 6. Comando: upload (Creazione e caricamento card)
-  # A) Da PROMPT con Google AI (Voce TTS casuale + Immagine Nano Banana):
-  GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \\
+  # A) Da PROMPT con AI (voce TTS HTTP + Immagine Nano Banana):
+  GEMINI_API_KEY=*** node upload-card.js upload \\
     --prompt "Leone" \\
     --additional-info "un maestoso leone che ruggisce nella savana al tramonto" \\
     --category <uuid_categoria|nome>
@@ -2398,8 +2446,10 @@ ESEMPI PER OGNI COMANDO
     --seconds 20 \\
     --category <uuid_categoria|nome>
 
-  # C) Da PROMPT in modalità EFFETTI con ElevenLabs Sound Effects:
+  # C) Da PROMPT in modalità EFFETTI: il nome della card è letto dal TTS HTTP,
+  #    mentre ElevenLabs Sound Effects genera solo l'effetto:
   GEMINI_API_KEY=*** ELEVENLABS_API_KEY=*** node upload-card.js upload \\
+    --name "Tuono" \\
     --prompt "Un tuono lontano durante un temporale" \\
     --additional-info "pioggia intensa, atmosfera cinematografica" \\
     --audio-mode effects \\
@@ -2407,7 +2457,7 @@ ESEMPI PER OGNI COMANDO
     --category <uuid_categoria|nome>
 
   # D) Da PROMPT in LOCALE (salva gli asset in public/):
-  GEMINI_API_KEY=*** GOOGLE_TTS_API_KEY=*** node upload-card.js upload \\
+  GEMINI_API_KEY=*** node upload-card.js upload \\
     --prompt "Un albero fiorito" \\
     --category animals \\
     --mode local
@@ -2428,28 +2478,28 @@ ESEMPI PER OGNI COMANDO
   # I segmenti vengono uniti in un unico video con cambio immagine a fine audio.
   # Il nome del file include data e ora (es. animali-2026-11-27_15-42-10.mp4),
   # così più esecuzioni in batch non si sovrascrivono.
-  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
+  SUPABASE_PASSWORD=*** node upload-card.js video \\
     --category "Animali" --out ./videos
 
   # Un video separato per ogni card (invece di un unico montaggio)
-  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
+  SUPABASE_PASSWORD=*** node upload-card.js video \\
     --category "Animali" --per-card --out ./videos
 
   # Scegli a terminale quali card includere (elenco numerato; invio = tutte)
-  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
+  SUPABASE_PASSWORD=*** node upload-card.js video \\
     --category "Animali" --select-cards --out ./videos
 
   # Solo alcune card, nell'ordine indicato (nomi o UUID separati da virgola)
-  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
+  SUPABASE_PASSWORD=*** node upload-card.js video \\
     --category "Animali" --cards "Leone,Tigre,Gatto" --out ./videos
 
   # Ordine audio inverso (prima il suono della card, poi il nome) e pausa di 0.4s
-  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
+  SUPABASE_PASSWORD=*** node upload-card.js video \\
     --category <uuid_categoria|nome> --audio-order sound-first --gap 0.4
 
-  # Formato verticale, voce fissa e nome file personalizzato
-  SUPABASE_PASSWORD=*** GOOGLE_TTS_API_KEY=*** node upload-card.js video \\
-    --category "Animali" --size 1080x1920 --voice it-IT-Neural2-A --name animali
+  # Formato verticale e nome file personalizzato
+  SUPABASE_PASSWORD=*** node upload-card.js video \\
+    --category "Animali" --size 1080x1920 --name animali
 
 8. Comando: help (Aiuto)
   node upload-card.js help
@@ -2461,7 +2511,7 @@ Variabili d'ambiente:
   SUPABASE_PASSWORD   Password dell'account Supabase (richiesta per comandi remoti)
   SUPABASE_EMAIL      Email dell'account Supabase
   GEMINI_API_KEY      API key AI Studio per immagini Nano Banana e musica Lyria
-  GOOGLE_TTS_API_KEY  API key per Google Text-to-Speech
+  TTS_URL             Base dell'API TTS HTTP [default: https://tts.antoniogiordano.dev]
   ELEVENLABS_API_KEY  API Key ElevenLabs per --audio-mode effects
   ELEVENLABS_TOKEN    Alias supportato per ELEVENLABS_API_KEY
   CAT                 Categoria corrente, impostata da create-category
@@ -2469,16 +2519,16 @@ Variabili d'ambiente:
 Flag upload da Prompt:
   --prompt <testo>          Titolo/messaggio principale della card (es. "Gatto")
   --additional-info <info>  Dettagli aggiuntivi per guidare l'AI (es. "gatto rosso sul divano")
-  --audio-mode <tipo>       voice (Google TTS), music (Google Lyria 3.5) o effects (ElevenLabs) [default: voice]
+  --audio-mode <tipo>       voice (TTS HTTP), music (Google Lyria 3.5) o effects (nome TTS + ElevenLabs) [default: voice]
   --music-model lyria-3.5   Unico modello disponibile per la musica [default: lyria-3.5]
-  --seconds <n>             Durata audio; music: taglio opzionale, effects: parametro API 0.5-30s
+  --seconds <n>             Durata audio; music: taglio opzionale, effects: solo l'effetto (0.5-30s)
   --elevenlabs-key <key>    Chiave ElevenLabs (o ELEVENLABS_API_KEY / ELEVENLABS_TOKEN)
   --name <nome>             Nome della card (default: testo del prompt)
   --category <uuid|nome>    UUID (per remoto) o cartella public/ (per locale) [default: CAT]
   --mode remote|local       remote (upload Supabase) o local (salva in public/)
 
 Log diagnostici:
-  Richieste HTTP, parametri Google/ElevenLabs/Supabase e comandi ffmpeg sono stampati su stderr.
+  Richieste HTTP, parametri Google/ElevenLabs/TTS/Supabase e comandi ffmpeg sono stampati su stderr.
   Chiavi API, token e password vengono redatti automaticamente.
 
 Flag move-card:
@@ -2518,11 +2568,8 @@ Flag video:
                             Ordine audio: prima il TTS del nome o prima il suono
                             della card [default: name-first]
   --gap <secondi>           Pausa di silenzio dopo ogni audio [default: 0]
-  --voice <nome|FEMALE|MALE>
-                            Voce TTS fissa (una sola voce per tutto il video)
-  --lang <codice>           Lingua TTS [default: it-IT]
   --limit <n>               Limita il video alle prime n card
-`.trim());
+`.trim()));
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

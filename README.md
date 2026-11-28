@@ -26,6 +26,8 @@
 | **Scheda Doppia** | Two cards side-by-side for comparison/choice |
 | **Cantastorie** | Interactive storytelling with chapters |
 | **La Banda** | Four-track pentatonic loop grid with synthesized instruments |
+| **Ascolta e indovina** | Two-image listening quiz built on the public cards |
+| **Calma** | Generative, low-demand ambient soundscape with a breathing circle |
 
 ### 🔀 Navigation Modes
 
@@ -74,6 +76,28 @@ An accessible loop station for building music with no timing skills required:
   fixed speeds and a mute per lane
 - Everything is synthesized with the shared Web Audio context: no audio assets,
   no Storage uploads, works offline
+
+### 👂 Ascolta e indovina (sound quiz)
+
+A forced-choice listening game built on the public cards:
+
+- Pick a category (only categories with at least two playable cards are shown),
+  listen to the target and choose between **two images**
+- Six rounds, a star for every correct answer, a big 🔊 button to replay the
+  sound (also `A`/`Space`)
+- A wrong answer never blocks the round: the sound repeats and after two
+  attempts the right card pulses
+- No new audio assets: it uses the TTS stored with the cards
+
+### 🌙 Calma (calm mode)
+
+A generative, low-demand soundscape for self-regulation and bedtime:
+
+- Slow chords, sparse bells and a generated reverb (no audio files)
+- A breathing circle, a deep night sky and sessions of 3, 5, 10 minutes or ∞
+- Tapping the screen adds a bell and advances the harmony; doing nothing is
+  perfectly fine too
+- Pauses when the app goes in background; respects `prefers-reduced-motion`
 
 ### 👤 User Accounts
 
@@ -315,6 +339,12 @@ l'immagine, quindi per una card "Banana" conviene
 `--additional-info` è solo un dettaglio visivo accodato al prompt: non viene
 mai pronunciato.
 
+La voce non usa più Google TTS: viene chiamata l'API HTTP configurata in
+`TTS_URL` (default `https://tts.antoniogiordano.dev`) con `speed=3` fisso.
+In `--audio-mode effects` il nome della card viene comunque pronunciato da
+questa API e ElevenLabs genera solo l'effetto, accodato dopo la voce;
+`--seconds` limita il solo effetto, non la voce.
+
 `--input` accetta audio (m4a, mp3, wav…) e video (mp4, webm, mov…): dai video
 viene usata solo la traccia audio. `--image` è facoltativo: se manca e `--input`
 è un video, lo script estrae con ffmpeg il fotogramma a metà clip
@@ -326,13 +356,14 @@ centrale, così la card non deve tagliarlo ulteriormente. Con un input audio
 #### `video`: da categoria Supabase a video locale
 
 Crea un video locale partendo da una categoria esistente: per ogni card scarica
-immagine e audio da Supabase, genera con Google TTS la voce del nome e monta un
-segmento con l'immagine fissa; quando l'audio finisce l'immagine passa alla card
-successiva. Di default i segmenti vengono uniti in un unico MP4.
+immagine e audio da Supabase, genera con l'API TTS HTTP la voce del nome e monta
+un segmento con l'immagine fissa; quando l'audio finisce l'immagine passa alla
+card successiva. Di default i segmenti vengono uniti in un unico MP4.
 
 ```bash
 export SUPABASE_PASSWORD=***
-export GOOGLE_TTS_API_KEY=***
+# Facoltativo: base dell'API TTS (default https://tts.antoniogiordano.dev)
+export TTS_URL=https://tts.antoniogiordano.dev
 
 # Un unico video con tutte le card della categoria
 node scripts/upload-card.js video --category "Animali" --out ./videos
@@ -499,8 +530,8 @@ deterministici e non servono credenziali reali.
 
 `e2e/navigation.spec.js`
 
-- la schermata iniziale mostra le 5 modalità: Una Card, Due Card, Cantastorie,
-  La Banda, Giochi
+- la schermata iniziale mostra le 7 modalità: Una Card, Due Card, Cantastorie,
+  La Banda, Ascolta e indovina, Calma, Giochi
 - flusso Una Card: modalità → `/home` → `/animals` → indietro
 - ogni categoria statica apre il proprio mazzo di card
 - modalità Due Card: mostra sia la card primaria sia la secondaria
@@ -533,6 +564,24 @@ deterministici e non servono credenziali reali.
 - il tasto 🎲 riempie la griglia e garantisce sempre un colpo di batteria
 - title, canonical, Open Graph, `sitemap.txt` e `robots.txt` espongono `/band`
 - la griglia non produce scroll orizzontale su uno schermo da 390px
+
+`e2e/sound-quiz.spec.js`
+
+- **Ascolta e indovina**: si apre da ModeSelect e da `/ascolta`, elenca le
+  categorie con almeno due carte ascoltabili
+- ogni round mostra due opzioni con una sola risposta corretta; la risposta
+  giusta assegna una stella, quella sbagliata lascia il round aperto e dopo due
+  tentativi fa pulsare la carta giusta
+- il tasto "Ripeti il suono" funziona, il back torna alle modalità
+- title, canonical e sitemap espongono `/ascolta`
+
+`e2e/calm.spec.js`
+
+- **Calma**: si apre da ModeSelect e da `/calma`, le durate cambiano stato
+- la sessione parte, crea davvero oscillatori e il pulsante Ferma porta alla
+  schermata finale
+- title, canonical e sitemap espongono `/calma`
+- nessuno scroll orizzontale su uno schermo da 390px
 
 #### Esecuzione
 

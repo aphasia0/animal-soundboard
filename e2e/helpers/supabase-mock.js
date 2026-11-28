@@ -73,14 +73,20 @@ export const PUBLIC_CATEGORIES = [
   created_at: new Date(Date.UTC(2026, 0, 1, index)).toISOString(),
 }));
 
-export const PUBLIC_CARDS = PUBLIC_CATEGORIES.map((category, index) => ({
-  id: `99999999-9999-4999-8999-99999999999${index}`,
-  category_id: category.id,
-  name: `Card ${category.name}`,
-  image_url: '/animals-nocircle/lion.svg',
-  sound_url: 'synth:pianoforte',
-  created_at: new Date(Date.UTC(2026, 0, 1, index)).toISOString(),
-}));
+/**
+ * Two cards per category: the sound quiz needs at least two playable cards to
+ * build a forced-choice round. Names stay distinct so the options are unique.
+ */
+export const PUBLIC_CARDS = PUBLIC_CATEGORIES.flatMap((category, index) =>
+  [0, 1].map((variant) => ({
+    id: `99999999-9999-4999-8999-9999999999${String(index * 2 + variant).padStart(2, '0')}`,
+    category_id: category.id,
+    name: variant === 0 ? `Card ${category.name}` : `Card ${category.name} 2`,
+    image_url: variant === 0 ? '/animals-nocircle/lion.svg' : '/animals-nocircle/elephant.svg',
+    sound_url: variant === 0 ? 'synth:pianoforte' : 'synth:xilofono',
+    created_at: new Date(Date.UTC(2026, 0, 1, index, variant)).toISOString(),
+  }))
+);
 
 /** Intercept the public categories/cards queries made on every app start. */
 export async function mockPublicContent(page) {

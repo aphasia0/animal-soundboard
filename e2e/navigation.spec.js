@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('mode select', () => {
-  test('renders all five modes', async ({ page }) => {
+  test('renders all seven modes', async ({ page }) => {
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: 'Scegli Modalità' })).toBeVisible();
@@ -18,6 +18,8 @@ test.describe('mode select', () => {
     await expect(page.getByRole('button', { name: /Due Card/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Cantastorie/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /La Banda/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Ascolta e indovina/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Calma/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Giochi/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Accedi' })).toBeVisible();
   });

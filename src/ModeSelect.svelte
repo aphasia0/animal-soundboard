@@ -140,7 +140,23 @@
                 <div class="description">Fai musica</div>
             </button>
 
-            <button class="card enabled" on:click={() => selectMode("games")} in:fly={{ y: 50, duration: 600, delay: 550 }}>
+            <button class="card enabled" on:click={() => selectMode("quiz")} in:fly={{ y: 50, duration: 600, delay: 450 }}>
+                <div class="icon-container">
+                    <div class="emoji-icon">👂</div>
+                </div>
+                <div class="name">Ascolta e indovina</div>
+                <div class="description">Due carte, un suono</div>
+            </button>
+
+            <button class="card enabled" on:click={() => selectMode("calm")} in:fly={{ y: 50, duration: 600, delay: 550 }}>
+                <div class="icon-container">
+                    <div class="emoji-icon">🌙</div>
+                </div>
+                <div class="name">Calma</div>
+                <div class="description">Rilassati</div>
+            </button>
+
+            <button class="card enabled" on:click={() => selectMode("games")} in:fly={{ y: 50, duration: 600, delay: 650 }}>
                 <div class="icon-container">
                     <div class="emoji-icon">🎮</div>
                 </div>

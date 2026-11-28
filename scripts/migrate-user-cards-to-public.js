@@ -43,6 +43,8 @@ const RESERVED_SLUGS = new Set([
   "stories",
   "gameshub",
   "band",
+  "ascolta",
+  "calma",
   "info",
   "category",
   "animals",

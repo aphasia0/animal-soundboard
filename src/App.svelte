@@ -25,6 +25,8 @@
   import GamesView from "./GamesView.svelte";
   import InfoView from "./InfoView.svelte";
   import BandView from "./BandView.svelte";
+  import SoundQuizView from "./SoundQuizView.svelte";
+  import CalmView from "./CalmView.svelte";
 
   // Gli indirizzi leggibili (/animals, /verbi, ...) vengono risolti tramite
   // lo slug della categoria pubblica. Le private usano /category/<uuid>.
@@ -264,6 +266,12 @@
     } else if (path === "/band") {
       clearCategoryRoute();
       currentView = "band";
+    } else if (path === "/ascolta") {
+      clearCategoryRoute();
+      currentView = "quiz";
+    } else if (path === "/calma") {
+      clearCategoryRoute();
+      currentView = "calm";
     } else if (path === "/info") {
       clearCategoryRoute();
       currentView = "info";
@@ -304,6 +312,8 @@
     else if (view === "stories") path = "/stories";
     else if (view === "gameshub") path = "/gameshub";
     else if (view === "band") path = "/band";
+    else if (view === "quiz") path = "/ascolta";
+    else if (view === "calm") path = "/calma";
     else if (view === "info") path = "/info";
     else if (view === "publicCategory" && payload)
       path = categoryPath(payload);
@@ -349,6 +359,10 @@
       navigate("gameshub");
     } else if (mode === "band") {
       navigate("band");
+    } else if (mode === "quiz") {
+      navigate("quiz");
+    } else if (mode === "calm") {
+      navigate("calm");
     } else {
       selectedCardMode = mode;
       settingsStore.updateSettings({ cardMode: mode }, currentUser?.id);
@@ -523,6 +537,14 @@
   />
 {:else if currentView === "band"}
   <BandView on:back={handleBackToMode} />
+{:else if currentView === "quiz"}
+  <SoundQuizView
+    categories={publicCategories}
+    loading={publicContentLoading}
+    on:back={handleBackToMode}
+  />
+{:else if currentView === "calm"}
+  <CalmView on:back={handleBackToMode} />
 {:else if currentView === "stories"}
   <StorySelect
     on:back={handleBack}

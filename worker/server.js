@@ -17,7 +17,7 @@
  *   WORKER_TOKEN       obbligatorio, Bearer token per /upload
  *   SUPABASE_*         usate da upload-card.js per il login e l'upload
  *   GEMINI_API_KEY     immagini (Nano Banana) e musica (Lyria)
- *   GOOGLE_TTS_API_KEY voce Google TTS
+ *   TTS_URL            base dell'API TTS HTTP (default: https://tts.antoniogiordano.dev)
  *   ELEVENLABS_API_KEY effetti audio
  *   DATA_DIR           dove salvare lo stato dei job (default: /data)
  *   APP_DIR            radice del progetto nel container (default: /app)
@@ -351,7 +351,8 @@ function healthPayload() {
       supabaseEmail: Boolean(process.env.SUPABASE_EMAIL),
       supabasePassword: Boolean(process.env.SUPABASE_PASSWORD),
       gemini: Boolean(process.env.GEMINI_API_KEY),
-      googleTts: Boolean(process.env.GOOGLE_TTS_API_KEY),
+      // Il TTS HTTP non richiede chiavi: l'endpoint è pubblico.
+      tts: true,
       elevenLabs: Boolean(
         process.env.ELEVENLABS_API_KEY || process.env.ELEVENLABS_TOKEN,
       ),

@@ -13,7 +13,7 @@ accesso a una shell.
 - `requestId` rende le chiamate ripetibili: un secondo invio dello stesso job
   restituisce il risultato in cache invece di creare un'altra card.
 - `GET /health` mostra stato, versione di ffmpeg e presenza delle variabili
-  d'ambiente, senza esporre i valori.
+  d'ambiente, senza esporre i valori. Il TTS HTTP non richiede chiavi.
 
 L'idempotenza copre i retry dello stesso `requestId`, ma il CLI non è
 transazionale: se il job muore dopo l'inserimento nel DB ma prima della
@@ -134,12 +134,12 @@ Campi:
 
 | Campo | Obbligatorio | Note |
 |---|---|---|
-| `prompt` | sì | Descrizione visiva per l'immagine; in `voice` è anche il testo pronunciato, ma solo se `name` non è indicato |
+| `prompt` | sì | Descrizione visiva per l'immagine; in `voice` è anche il testo pronunciato, ma solo se `name` non è indicato; in `effects` guida solo l'effetto |
 | `category` | sì | UUID o nome della categoria in modalità `remote`; nome cartella in `local` |
-| `name` | no | Etichetta della card e testo pronunciato in `voice`; default: primi 35 caratteri del prompt |
+| `name` | no | Etichetta della card e testo pronunciato in `voice` e `effects`; default: primi 35 caratteri del prompt |
 | `mode` | no | `remote` (default) o `local` |
-| `audioMode` | no | `voice` (default), `music`, `effects` |
-| `seconds` | no | Solo `music` (1-600) ed `effects` (0,5-30); in `voice` la durata dipende dal testo e il campo viene ignorato |
+| `audioMode` | no | `voice` (default), `music`, `effects`; in `effects` il nome è letto dal TTS HTTP e ElevenLabs genera solo l'effetto |
+| `seconds` | no | Solo `music` (1-600) ed `effects` (0,5-30, applicato al solo effetto); in `voice` la durata dipende dal testo e il campo viene ignorato |
 | `additionalInfo` | no | Dettagli extra **solo visivi**: viene accodato al prompt per l'immagine (e per musica/effetti), mai pronunciato |
 | `requestId` | no | Chiave di idempotenza; default UUID generato |
 | `retry` | no | `true` per rieseguire un job fallito con lo stesso `requestId` |
@@ -223,7 +223,7 @@ vivono in un solo punto. Contratto dei campi:
 
 | Campo | Ruolo |
 | --- | --- |
-| `name` | etichetta della card **e** parola pronunciata in `voice` |
+| `name` | etichetta della card **e** parola pronunciata in `voice` e `effects` |
 | `prompt` | descrizione visiva per l'immagine; se manca si usa `name` |
 | `category` | nome o UUID della categoria |
 | `audioMode` | `voice` / `music` / `effects` |
@@ -235,8 +235,8 @@ Regole applicate prima di toccare il worker:
 - `category` obbligatorio (nome o UUID), max 200 caratteri
 - `prompt` facoltativo, max 2000 caratteri; default `name`
 - `audioMode` in `voice` / `music` / `effects` (default `voice`, case-insensitive)
-- `seconds` solo per `music` (1-600) ed `effects` (0,5-30); in `voice` viene
-  scartato, perché la durata dipende dal testo
+- `seconds` solo per `music` (1-600) ed `effects` (0,5-30, applicato al solo
+  effetto); in `voice` viene scartato, perché la durata dipende dal testo
 - `additionalInfo` non è esposto dal tool MCP, per non confondere il modello;
   il worker e il CLI continuano ad accettarlo come dettaglio visivo
 - `requestId` facoltativo, `[A-Za-z0-9._-]{1,100}`
@@ -267,7 +267,7 @@ anche vuoto: `$fromAI('name', '...', 'string', '')`.
 | `SUPABASE_EMAIL` | — | Login utente del CLI |
 | `SUPABASE_PASSWORD` | — | Password del CLI |
 | `GEMINI_API_KEY` | — | Immagini Nano Banana e musica Lyria |
-| `GOOGLE_TTS_API_KEY` | — | Audio `voice` |
+| `TTS_URL` | `https://tts.antoniogiordano.dev` | Base dell'API TTS HTTP (speed fisso 3) |
 | `ELEVENLABS_API_KEY` | — | Audio `effects` |
 | `PORT` | `8787` | Porta interna |
 | `MAX_QUEUE` | `2` | Job in coda + in esecuzione |

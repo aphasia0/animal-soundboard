@@ -34,7 +34,7 @@ npx playwright test -g "slug"
 - Il worker usa ancora il login utente e scrive in `user_cards`; per `soundpad_public_cards` / `public/<card_uuid>/...` serve una variante con `service_role`.
 - `POST /upload` accetta `category` come UUID o nome: il CLI risolve il nome prima di generare audio/immagine, con errore esplicito se è ambiguo. Vale anche per `upload --mode remote` da shell.
 - n8n: `worker/n8n-worker-upload.json` (Execute Workflow Trigger → Code di validazione → IF → HTTP) e `worker/n8n-mcp-workflow.json` (MCP Server Trigger + Call n8n Workflow Tool verso il primo). La validazione sta solo nel sottoworkflow e non lancia eccezioni: restituisce `{ok:false, error, dettagli}`. Contratto esposto dal tool: `name` obbligatorio (etichetta + parola pronunciata), `prompt` facoltativo (fallback `name`), `additionalInfo` non esposto. In un `Call n8n Workflow Tool` un `$fromAI(...)` senza quarto argomento è required: i campi facoltativi hanno bisogno di un default, anche `''`. Entrambi i JSON contengono `WORKER_TOKEN` in chiaro e sono gitignored; il nodo `crea_card` richiede di selezionare il sottoworkflow dopo l'import.
-- In modalità `voice` il TTS pronuncia `--name` se presente, altrimenti il prompt; il worker passa `--name` al CLI solo se il chiamante lo ha indicato.
+- In modalità `voice` il TTS pronuncia `--name` se presente, altrimenti il prompt; il worker passa `--name` al CLI solo se il chiamante lo ha indicato. In `effects` il nome della card viene comunque letto dal TTS e ElevenLabs genera solo l'effetto: l'audio finale è voce + effetto. Il TTS è l'API HTTP in `TTS_URL` (default `https://tts.antoniogiordano.dev`) con `speed=3` fisso.
 
 ## Layout e Safari iOS
 
@@ -49,6 +49,7 @@ npx playwright test -g "slug"
 - `src/audioUtils.js` tiene un solo `AudioContext`. Non controllare solo `state === "suspended"`: dopo il background iOS può usare `interrupted` o lasciare un contesto muto. Dopo oltre 30 secondi nascosto, al ritorno il contesto viene ricreato al primo playback e le cache degli `AudioBuffer` vengono invalidate.
 - Ogni riproduzione deve passare da `resumeAudioContext()`/`ensureRunningAudioContext()` prima di creare sorgenti. Se il resume fallisce, il contesto viene sostituito una volta. Non riutilizzare nodi o buffer del contesto chiuso.
 - `src/musicEngine.js` programma le note con un lookahead su `ctx.currentTime` e usa `ensureSharedAudioContext()`/`getSharedAudioContext()`: non crea mai un `AudioContext` proprio. Se il contesto cambia (reset iOS) ricostruisce il grafo; il playhead va letto da `getPosition()`, non da un timer indipendente.
+- `src/calmEngine.js` segue la stessa regola: riverbero generato con un impulso di rumore, nessun file audio, `pause()`/`resume()` su `visibilitychange` e `dispose()` che ferma scheduler e nodi. Non avviare la sessione senza un gesto utente.
 
 ## Test e2e
 
@@ -72,8 +73,10 @@ npx playwright test -g "slug"
 
 ## Routing
 
-- Rotte SPA: `/`, `/home`, `/random`, `/stories`, `/gameshub`, `/band`, `/info`, `/category/<uuid>`, `/<slug>`.
+- Rotte SPA: `/`, `/home`, `/random`, `/stories`, `/gameshub`, `/band`, `/ascolta`, `/calma`, `/info`, `/category/<uuid>`, `/<slug>`.
 - `/band` è la modalità musicale “La Banda”: griglia 4×6 di pad sintetizzati in `src/musicEngine.js`, che riusa l'AudioContext di `audioUtils.js`. Lo slug `band` è riservato in `scripts/migrate-user-cards-to-public.js`.
+- `/ascolta` è il quiz “Ascolta e indovina”: usa `publicCategories` passate da `App` e scarta le categorie con meno di due carte con immagine e suono. Nessun asset nuovo, solo i TTS delle card.
+- `/calma` è la modalità ambient di `src/calmEngine.js`: accordi lenti, campanelli, riverbero generato e pausa automatica in background. Gli slug `ascolta` e `calma` sono riservati come `band`.
 - `src/seo.js` aggiorna title, description, canonical e Open Graph a ogni cambio vista (`applySeo` in `App.svelte`); le rotte pubbliche vanno aggiunte a `public/sitemap.txt`, che è in formato testo ed è referenziato da `public/robots.txt`.
 - `/<slug>` (un solo segmento) è sempre una categoria pubblica. Se lo slug non esiste si torna alla schermata iniziale, non si cerca una categoria privata.
 - `/random` è il mazzo “All Together” (pubbliche + personali), non una categoria.
@@ -96,7 +99,7 @@ npx playwright test -g "slug"
 - `migrate-user-card-assets-to-public.js --owner UUID [--category UUID ... | --private-category UUID ...] [--apply]`: copia gli asset in `public/<card_uuid>/`.
 - `migrate-user-cards-to-public.js --owner UUID --category UUID [--slug verbi] --apply`: scrive le tabelle pubbliche e poi elimina i record privati. Le chiamate REST non sono transazionali; è rieseguibile e verifica prima che gli asset esistano.
 - In entrambi: anteprima di default, `--apply` per eseguire, `--help` per le opzioni. `--category` e `--private-category` sono ripetibili e mutuamente esclusive. `--slug` richiede una sola `--category`, viene normalizzato in minuscolo, rifiuta slug riservati (`home`, `random`, `stories`, `gameshub`, `info`, `category`, `animals`, `work`, ...) e conflitti con altri slug.
-- Seed e migrazioni non caricano `.env`: passa `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` nell'ambiente. `scripts/upload-card.js` (anche `npm run cli|video|analyze`) carica il `.env` da solo; per i comandi remoti richiede `SUPABASE_EMAIL` + `SUPABASE_PASSWORD`, per video/TTS anche `ffmpeg` e `GOOGLE_TTS_API_KEY`. Aiuto completo: `node scripts/upload-card.js help`.
+- Seed e migrazioni non caricano `.env`: passa `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` nell'ambiente. `scripts/upload-card.js` (anche `npm run cli|video|analyze`) carica il `.env` da solo; per i comandi remoti richiede `SUPABASE_EMAIL` + `SUPABASE_PASSWORD`, per video/TTS anche `ffmpeg`; la voce usa l'API HTTP in `TTS_URL` (default `https://tts.antoniogiordano.dev`, `speed=3` fisso). Aiuto completo: `node scripts/upload-card.js help`.
 - Se manca `SUPABASE_URL`, `upload-card.js` usa un progetto Supabase hardcoded: esporta sempre l'URL esplicito e usa `--dry-run` prima di `delete-card`/`move-card`.
 - `create-category` salva `CAT` in `.soundpad-cat.env` (gitignored); i comandi successivi la usano se `--category` è omesso.
 - SQL: `supabase-public-cards-ddl.sql` crea tabelle/policy/storage; `supabase-public-cards-migration.sql` è la migrazione dati, richiede di configurare `owner_id` e termina con `rollback;` — sostituiscilo con `commit;` per applicarla.

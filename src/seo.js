@@ -51,6 +51,18 @@ const ROUTES = {
     description:
       'La Banda è la modalità musicale accessibile di Sound Pad: quattro strumenti, sei passi e una scala pentatonica. Tocca le caselle, premi play e crea il tuo loop senza saper suonare a tempo.',
   },
+  quiz: {
+    path: '/ascolta',
+    title: 'Ascolta e indovina - Sound Pad',
+    description:
+      'Un gioco di ascolto per bambini: parte un suono, due immagini e basta toccare quella giusta. Riconoscimento uditivo e vocabolario con le carte CAA di Sound Pad.',
+  },
+  calm: {
+    path: '/calma',
+    title: 'Calma: musica per rilassarsi - Sound Pad',
+    description:
+      'Una modalità rilassante di Sound Pad: accordi lenti, campanelli e un cerchio che respira. Scegli 3, 5 o 10 minuti e lascia che la musica accompagni la calma.',
+  },
   info: {
     path: '/info',
     title: 'Informazioni - Sound Pad',
