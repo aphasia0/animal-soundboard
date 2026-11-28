@@ -16,6 +16,7 @@
     loadPublicContent,
     publicContent,
   } from "./publicContentStore.js";
+  import { applySeo, seoForRoute } from "./seo.js";
 
   // Storie e giochi restano contenuti dedicati, non card pubbliche.
   import { stories } from "./stories.js";
@@ -153,6 +154,10 @@
 
   // Un unico grande mazzo con tutte le card disponibili.
   $: randomItems = [...allPublicCards, ...allUserCards];
+
+  // Title, description e canonical seguono la vista corrente: la pagina
+  // /band e le categorie pubbliche devono esporre i propri metadati ai motori.
+  $: applySeo(seoForRoute(currentView, selectedPublicCategory, selectedUserCategory));
 
   // Reactive user cards fetching
   let userCards = [];

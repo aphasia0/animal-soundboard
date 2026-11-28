@@ -74,6 +74,7 @@ npx playwright test -g "slug"
 
 - Rotte SPA: `/`, `/home`, `/random`, `/stories`, `/gameshub`, `/band`, `/info`, `/category/<uuid>`, `/<slug>`.
 - `/band` è la modalità musicale “La Banda”: griglia 4×6 di pad sintetizzati in `src/musicEngine.js`, che riusa l'AudioContext di `audioUtils.js`. Lo slug `band` è riservato in `scripts/migrate-user-cards-to-public.js`.
+- `src/seo.js` aggiorna title, description, canonical e Open Graph a ogni cambio vista (`applySeo` in `App.svelte`); le rotte pubbliche vanno aggiunte a `public/sitemap.txt`, che è in formato testo ed è referenziato da `public/robots.txt`.
 - `/<slug>` (un solo segmento) è sempre una categoria pubblica. Se lo slug non esiste si torna alla schermata iniziale, non si cerca una categoria privata.
 - `/random` è il mazzo “All Together” (pubbliche + personali), non una categoria.
 - `/category/<uuid>` risolve prima la categoria pubblica, poi la privata (le private solo per UUID).

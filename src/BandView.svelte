@@ -11,6 +11,14 @@
 
   const dispatch = createEventDispatcher();
 
+  // Quanti passi accendere, in media, per corsia quando si mescola.
+  const SHUFFLE_DENSITY = {
+    drums: 0.5,
+    bass: 0.35,
+    melody: 0.35,
+    bells: 0.2,
+  };
+
   let grid = emptyGrid();
   let tempo = 'normale';
   let muted = Object.fromEntries(TRACKS.map((track) => [track.id, false]));
@@ -111,6 +119,30 @@
     engine?.setGrid(grid);
   }
 
+  function shuffle() {
+    if (!engine) return;
+    triggerVibration(40);
+
+    const next = emptyGrid();
+    for (const track of TRACKS) {
+      const density = SHUFFLE_DENSITY[track.id] ?? 0.3;
+      for (let step = 0; step < STEPS; step++) {
+        next[track.id][step] = Math.random() < density;
+      }
+    }
+    // La batteria non deve mai restare muta, altrimenti il loop sembra rotto.
+    if (!next.drums.some(Boolean)) {
+      next.drums[Math.floor(Math.random() * STEPS)] = true;
+    }
+
+    grid = next;
+    engine.setGrid(grid);
+
+    // Anteprima: a loop fermo si sente subito che cosa è uscito dai dadi.
+    const previewStep = next.drums.findIndex(Boolean);
+    if (!playing && previewStep !== -1) engine.playCell('drums', previewStep);
+  }
+
   function laneHasSteps(trackId) {
     return grid[trackId].some(Boolean);
   }
@@ -184,6 +216,15 @@
     </section>
 
     <div class="transport">
+      <button
+        class="shuffle-button"
+        on:click={shuffle}
+        title="Mescola la griglia"
+        aria-label="Mescola la griglia"
+      >
+        <span aria-hidden="true">🎲</span>
+      </button>
+
       <button
         class="play-button"
         class:play-active={playing}
@@ -441,6 +482,34 @@
     flex-wrap: wrap;
   }
 
+  .shuffle-button {
+    width: 3.9rem;
+    height: 3.9rem;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.9);
+    color: #667eea;
+    font-size: 1.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.22);
+    transition: transform 0.16s, box-shadow 0.16s, background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .shuffle-button:hover {
+    background: white;
+    transform: translateY(-2px);
+  }
+
+  .shuffle-button:active {
+    transform: scale(0.94);
+    transition-duration: 70ms;
+  }
+
   .play-button {
     width: 5.6rem;
     height: 5.6rem;
@@ -557,6 +626,18 @@
       font-size: 1.7rem;
     }
 
+    .shuffle-button {
+      width: 3.4rem;
+      height: 3.4rem;
+      font-size: 1.45rem;
+    }
+
+    .tempos {
+      order: 3;
+      flex-basis: 100%;
+      justify-content: center;
+    }
+
     .tempo-button {
       font-size: 0.85rem;
       padding: 0.5rem 0.7rem;
@@ -567,6 +648,7 @@
     .step,
     .step .dot,
     .play-button,
+    .shuffle-button,
     .back-button,
     .clear-button,
     .tempo-button,

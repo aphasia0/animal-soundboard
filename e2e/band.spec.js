@@ -121,6 +121,44 @@ test('clear removes every active step', async ({ page }) => {
   await expect(page.locator('.step-on')).toHaveCount(0);
 });
 
+test('shuffle fills the grid and always gives the drums a hit', async ({ page }) => {
+  await page.goto('/band');
+  await expect(page.locator('.step-on')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Mescola la griglia' }).click();
+
+  const total = await page.locator('.step-on').count();
+  expect(total).toBeGreaterThan(0);
+  const drums = await page.locator('.step[data-track="drums"][aria-pressed="true"]').count();
+  expect(drums).toBeGreaterThan(0);
+});
+
+test('exposes page metadata and crawler files for search engines', async ({ page }) => {
+  await page.goto('/band');
+  await expect(page).toHaveTitle(/La Banda/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    'https://soundpad.antoniogiordano.dev/band',
+  );
+  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+    'content',
+    'https://soundpad.antoniogiordano.dev/band',
+  );
+  const description = await page.locator('meta[name="description"]').getAttribute('content');
+  expect(description).toMatch(/musicale/i);
+
+  const sitemap = await page.request.get('/sitemap.txt');
+  expect(await sitemap.text()).toContain('https://soundpad.antoniogiordano.dev/band');
+
+  const robots = await page.request.get('/robots.txt');
+  expect(await robots.text()).toContain(
+    'Sitemap: https://soundpad.antoniogiordano.dev/sitemap.txt',
+  );
+
+  await page.getByRole('button', { name: 'Indietro' }).click();
+  await expect(page).toHaveTitle(/AAC/);
+});
+
 test('the grid fits the viewport without horizontal scroll', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/band');

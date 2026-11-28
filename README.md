@@ -70,7 +70,8 @@ An accessible loop station for building music with no timing skills required:
 - Tapping a cell plays the note immediately and fixes it on that step
 - Every column maps to a note of the **C major pentatonic scale**, so any
   combination stays consonant
-- One **play/stop** button, three fixed speeds and a mute per lane
+- One **play/stop** button, a **shuffle** (🎲) that generates a new pattern, three
+  fixed speeds and a mute per lane
 - Everything is synthesized with the shared Web Audio context: no audio assets,
   no Storage uploads, works offline
 
@@ -526,9 +527,11 @@ deterministici e non servono credenziali reali.
 
 `e2e/band.spec.js`
 
-- **La Banda**: si apre da ModeSelect e da `/band`, mostra 4 corsie e 32 passi
+- **La Banda**: si apre da ModeSelect e da `/band`, mostra 4 corsie e 24 caselle
 - il tocco accende/spegne una cella, "Cancella tutto" svuota la griglia
 - il transport avanza il playhead e si ferma, velocità e mute cambiano stato
+- il tasto 🎲 riempie la griglia e garantisce sempre un colpo di batteria
+- title, canonical, Open Graph, `sitemap.txt` e `robots.txt` espongono `/band`
 - la griglia non produce scroll orizzontale su uno schermo da 390px
 
 #### Esecuzione
