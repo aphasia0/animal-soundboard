@@ -10,13 +10,14 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('mode select', () => {
-  test('renders all four modes', async ({ page }) => {
+  test('renders all five modes', async ({ page }) => {
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: 'Scegli Modalità' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Una Card/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Due Card/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Cantastorie/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /La Banda/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Giochi/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Accedi' })).toBeVisible();
   });

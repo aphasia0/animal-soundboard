@@ -39,7 +39,7 @@ npx playwright test -g "slug"
 ## Layout e Safari iOS
 
 - `public/global.css` lascia `html` e `body` nel flusso naturale del documento: non reintrodurre `position: fixed`, `overflow: hidden` o `overscroll-behavior: none` globali. Safari nasconde/anima le proprie barre solo con lo scroll nativo del documento, non con un `<main>` a altezza fissa e `overflow-y: auto`.
-- `ModeSelect`, `Home`, `GamesView`, `StorySelect` e `InfoView` usano `min-height: 100dvh` e lo scroll del documento. `CategoryView`, `StoryView`, `TouchTheBox` e `MuoviLaScatola` restano viste immersive a viewport bloccato.
+- `ModeSelect`, `Home`, `GamesView`, `StorySelect`, `BandView` e `InfoView` usano `min-height: 100dvh` e lo scroll del documento. `CategoryView`, `StoryView`, `TouchTheBox` e `MuoviLaScatola` restano viste immersive a viewport bloccato.
 - I fallback viewport vanno nell'ordine `100vh` poi `100dvh`. Le safe area si applicano una sola volta al contenitore radice; controlli fixed e modali devono aggiungere gli inset necessari senza duplicarli nei figli.
 - In modalità “Aggiungi a Home” iOS usa `apple-mobile-web-app-status-bar-style=black-translucent` e il fondo `#667eea` di `html`/`body`: non ripristinare la status bar `default` o un body chiaro, altrimenti ricompare la fascia bianca superiore.
 - `public/manifest.webmanifest` e le icone in `public/icons/` rendono l’app installabile e standalone (`display: standalone`). Le icone PNG sono generate dal sorgente `public/icons/icon.svg`; l’`apple-touch-icon` deve restare PNG perché iOS ignora gli SVG. Non c’è un service worker: l’app dipende da Supabase e non deve servire bundle in cache potenzialmente obsoleti.
@@ -48,6 +48,7 @@ npx playwright test -g "slug"
 
 - `src/audioUtils.js` tiene un solo `AudioContext`. Non controllare solo `state === "suspended"`: dopo il background iOS può usare `interrupted` o lasciare un contesto muto. Dopo oltre 30 secondi nascosto, al ritorno il contesto viene ricreato al primo playback e le cache degli `AudioBuffer` vengono invalidate.
 - Ogni riproduzione deve passare da `resumeAudioContext()`/`ensureRunningAudioContext()` prima di creare sorgenti. Se il resume fallisce, il contesto viene sostituito una volta. Non riutilizzare nodi o buffer del contesto chiuso.
+- `src/musicEngine.js` programma le note con un lookahead su `ctx.currentTime` e usa `ensureSharedAudioContext()`/`getSharedAudioContext()`: non crea mai un `AudioContext` proprio. Se il contesto cambia (reset iOS) ricostruisce il grafo; il playhead va letto da `getPosition()`, non da un timer indipendente.
 
 ## Test e2e
 
@@ -71,7 +72,8 @@ npx playwright test -g "slug"
 
 ## Routing
 
-- Rotte SPA: `/`, `/home`, `/random`, `/stories`, `/gameshub`, `/info`, `/category/<uuid>`, `/<slug>`.
+- Rotte SPA: `/`, `/home`, `/random`, `/stories`, `/gameshub`, `/band`, `/info`, `/category/<uuid>`, `/<slug>`.
+- `/band` è la modalità musicale “La Banda”: griglia 4×6 di pad sintetizzati in `src/musicEngine.js`, che riusa l'AudioContext di `audioUtils.js`. Lo slug `band` è riservato in `scripts/migrate-user-cards-to-public.js`.
 - `/<slug>` (un solo segmento) è sempre una categoria pubblica. Se lo slug non esiste si torna alla schermata iniziale, non si cerca una categoria privata.
 - `/random` è il mazzo “All Together” (pubbliche + personali), non una categoria.
 - `/category/<uuid>` risolve prima la categoria pubblica, poi la privata (le private solo per UUID).
@@ -85,7 +87,7 @@ npx playwright test -g "slug"
 - `public/animals-nocircle/` serve ai giochi “Tocca la Scatola” e “Muovi la Scatola” (e ai mock e2e): non spostarlo.
 - `public/assets/stories/` serve a storie e relativi audio.
 - `public/build/` è generato da Rollup (gitignored).
-- I tasti `A` e `Spazio` sono l'interfaccia del controller hardware ESP32 (`soundpad.c`, tastiera BLE), gestiti in `CategoryView`: non rimuoverli o rimapparli senza motivo.
+- I tasti `A` e `Spazio` sono l'interfaccia del controller hardware ESP32 (`soundpad.c`, tastiera BLE), gestiti in `CategoryView`: non rimuoverli o rimapparli senza motivo. Anche `BandView` li usa: `A` e `Spazio` avviano/fermano il loop, mentre lo spazio su un pulsante con focus resta l'attivazione nativa.
 
 ## Script contenuti (`scripts/`)
 

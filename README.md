@@ -25,6 +25,7 @@
 | **Scheda Singola** | One large card displayed at a time |
 | **Scheda Doppia** | Two cards side-by-side for comparison/choice |
 | **Cantastorie** | Interactive storytelling with chapters |
+| **La Banda** | Four-track pentatonic loop grid with synthesized instruments |
 
 ### 🔀 Navigation Modes
 
@@ -60,6 +61,18 @@ Configurable max time: **3s, 5s, 10s, 30s**, or auto (sound duration)
 2. **Pinocchio** - (10 chapters)
 3. **I Tre Porcellini** - Three Little Pigs (9 chapters)
 4. **Biancaneve** - Snow White (10 chapters)
+
+### 🎺 La Banda (music mode)
+
+An accessible loop station for building music with no timing skills required:
+
+- A **4×6 grid**: four instrument lanes (drums, bass, melody, bells), six steps
+- Tapping a cell plays the note immediately and fixes it on that step
+- Every column maps to a note of the **C major pentatonic scale**, so any
+  combination stays consonant
+- One **play/stop** button, three fixed speeds and a mute per lane
+- Everything is synthesized with the shared Web Audio context: no audio assets,
+  no Storage uploads, works offline
 
 ### 👤 User Accounts
 
@@ -485,8 +498,8 @@ deterministici e non servono credenziali reali.
 
 `e2e/navigation.spec.js`
 
-- la schermata iniziale mostra le 4 modalità: Una Card, Due Card, Cantastorie,
-  Giochi
+- la schermata iniziale mostra le 5 modalità: Una Card, Due Card, Cantastorie,
+  La Banda, Giochi
 - flusso Una Card: modalità → `/home` → `/animals` → indietro
 - ogni categoria statica apre il proprio mazzo di card
 - modalità Due Card: mostra sia la card primaria sia la secondaria
@@ -510,6 +523,13 @@ deterministici e non servono credenziali reali.
   1/10") e torna alla hub
 - **Info**: si apre dalla schermata iniziale, mostra la riga "Build" con un anno
   valido e torna indietro
+
+`e2e/band.spec.js`
+
+- **La Banda**: si apre da ModeSelect e da `/band`, mostra 4 corsie e 32 passi
+- il tocco accende/spegne una cella, "Cancella tutto" svuota la griglia
+- il transport avanza il playhead e si ferma, velocità e mute cambiano stato
+- la griglia non produce scroll orizzontale su uno schermo da 390px
 
 #### Esecuzione
 

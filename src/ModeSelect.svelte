@@ -132,7 +132,15 @@
                 <div class="description">Storie interattive</div>
             </button>
 
-            <button class="card enabled" on:click={() => selectMode("games")} in:fly={{ y: 50, duration: 600, delay: 450 }}>
+            <button class="card enabled" on:click={() => selectMode("band")} in:fly={{ y: 50, duration: 600, delay: 450 }}>
+                <div class="icon-container">
+                    <div class="emoji-icon">🎺</div>
+                </div>
+                <div class="name">La Banda</div>
+                <div class="description">Fai musica</div>
+            </button>
+
+            <button class="card enabled" on:click={() => selectMode("games")} in:fly={{ y: 50, duration: 600, delay: 550 }}>
                 <div class="icon-container">
                     <div class="emoji-icon">🎮</div>
                 </div>
@@ -252,12 +260,20 @@
     }
 
     .grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: stretch;
         gap: 2rem;
-        max-width: 1000px;
+        max-width: 1080px;
         width: 100%;
         margin-bottom: auto;
+    }
+
+    .grid .card {
+        /* Tre per riga; la quinta card resta centrata da sola. */
+        flex: 1 1 calc((100% - 4rem) / 3);
+        max-width: 340px;
     }
 
     .card {
@@ -336,9 +352,13 @@
         }
 
         .grid {
-            grid-template-columns: 1fr;
             gap: 1.5rem;
             max-width: 400px;
+        }
+
+        .grid .card {
+            flex-basis: 100%;
+            max-width: 100%;
         }
 
         .card {

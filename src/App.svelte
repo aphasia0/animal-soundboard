@@ -23,6 +23,7 @@
   import StorySelect from "./StorySelect.svelte";
   import GamesView from "./GamesView.svelte";
   import InfoView from "./InfoView.svelte";
+  import BandView from "./BandView.svelte";
 
   // Gli indirizzi leggibili (/animals, /verbi, ...) vengono risolti tramite
   // lo slug della categoria pubblica. Le private usano /category/<uuid>.
@@ -255,6 +256,9 @@
     } else if (path === "/gameshub") {
       clearCategoryRoute();
       currentView = "gameshub";
+    } else if (path === "/band") {
+      clearCategoryRoute();
+      currentView = "band";
     } else if (path === "/info") {
       clearCategoryRoute();
       currentView = "info";
@@ -294,6 +298,7 @@
     else if (view === "random") path = "/random";
     else if (view === "stories") path = "/stories";
     else if (view === "gameshub") path = "/gameshub";
+    else if (view === "band") path = "/band";
     else if (view === "info") path = "/info";
     else if (view === "publicCategory" && payload)
       path = categoryPath(payload);
@@ -337,6 +342,8 @@
       navigate("stories");
     } else if (mode === "games") {
       navigate("gameshub");
+    } else if (mode === "band") {
+      navigate("band");
     } else {
       selectedCardMode = mode;
       settingsStore.updateSettings({ cardMode: mode }, currentUser?.id);
@@ -509,6 +516,8 @@
   <GamesView
     on:back={handleBackToMode}
   />
+{:else if currentView === "band"}
+  <BandView on:back={handleBackToMode} />
 {:else if currentView === "stories"}
   <StorySelect
     on:back={handleBack}

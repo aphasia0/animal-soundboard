@@ -98,6 +98,22 @@ function getAudioContext() {
     return audioContext;
 }
 
+/**
+ * Returns the shared AudioContext if one already exists, without creating it.
+ * Music scheduling uses this to detect when iOS has replaced the context.
+ */
+export function getSharedAudioContext() {
+    return audioContext;
+}
+
+/**
+ * Ensures the shared AudioContext is running and returns it.
+ * Must be called from a user gesture handler on iOS.
+ */
+export async function ensureSharedAudioContext() {
+    return ensureRunningAudioContext();
+}
+
 async function ensureRunningAudioContext() {
     let ctx = getAudioContext();
 
